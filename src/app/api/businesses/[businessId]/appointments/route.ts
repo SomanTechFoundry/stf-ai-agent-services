@@ -5,6 +5,7 @@
 
 import { type NextRequest } from "next/server";
 import { z } from "zod";
+import { requireApiKey } from "@/lib/auth";
 import { appointmentService } from "@/lib/services/appointment.service";
 import { parseBody } from "@/lib/validation";
 import { successResponse, errorResponse } from "@/lib/utils/api-response";
@@ -19,6 +20,7 @@ export async function GET(
 ) {
   const requestId = generateRequestId();
   try {
+    requireApiKey(request);
     const { businessId } = await params;
     const sp = request.nextUrl.searchParams;
 
@@ -59,6 +61,7 @@ export async function POST(
 ) {
   const requestId = generateRequestId();
   try {
+    requireApiKey(request);
     const { businessId } = await params;
     const body  = await request.json();
     const input = parseBody(createAppointmentSchema, body);

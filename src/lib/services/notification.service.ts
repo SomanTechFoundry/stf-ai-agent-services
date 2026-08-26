@@ -198,6 +198,206 @@ export class NotificationService {
       logger.error("Email send failed", err, ctx);
     }
   }
+
+  /**
+   * Notify customer that an appointment was cancelled.
+   */
+  async sendAppointmentCancellation(
+    appointmentId: string,
+    businessId: string
+  ): Promise<void> {
+    try {
+      const appt = await this.loadAppointmentContext(appointmentId, businessId);
+      if (!appt) return;
+
+      const displayDate = formatDisplayDate(appt.startTime, appt.business.timezone);
+      const local = utcToLocal(appt.startTime, appt.business.timezone);
+      const displayTime = formatDisplayTime(local.time);
+      const ctx = { appointmentId, businessId, customerId: appt.customerId };
+
+      const smsBody = [
+        `Your appointment at ${appt.business.name} has been cancelled.`,
+        `${appt.service.name} on ${displayDate} at ${displayTime}`,
+        appt.business.phone ? `Questions? Call ${appt.business.phone}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      await Promise.allSettled([
+        this.sendRawSMS(appt, smsBody, ctx),
+        this.sendRawEmail(
+          appt,
+          `Appointment cancelled — ${appt.business.name}`,
+          `<p>Hi ${escapeHtml(appt.customer.name ?? "there")}, your ${escapeHtml(appt.service.name)} appointment on ${displayDate} at ${displayTime} has been cancelled.</p>`,
+          ctx
+        ),
+      ]);
+    } catch (err) {
+      logger.error("sendAppointmentCancellation failed", err, { appointmentId });
+    }
+  }
+
+  /**
+   * Notify customer that an appointment was rescheduled.
+   */
+  async sendAppointmentReschedule(
+    appointmentId: string,
+    businessId: string
+  ): Promise<void> {
+    try {
+      const appt = await this.loadAppointmentContext(appointmentId, businessId);
+      if (!appt) return;
+
+      const displayDate = formatDisplayDate(appt.startTime, appt.business.timezone);
+      const local = utcToLocal(appt.startTime, appt.business.timezone);
+      const displayTime = formatDisplayTime(local.time);
+      const ctx = { appointmentId, businessId, customerId: appt.customerId };
+
+      const smsBody = [
+        `Your appointment at ${appt.business.name} has been rescheduled.`,
+        `New time: ${displayDate} at ${displayTime}`,
+        `${appt.service.name}`,
+        appt.business.phone ? `Questions? Call ${appt.business.phone}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      await Promise.allSettled([
+        this.sendRawSMS(appt, smsBody, ctx),
+        this.sendRawEmail(
+          appt,
+          `Appointment rescheduled — ${appt.business.name}`,
+          `<p>Hi ${escapeHtml(appt.customer.name ?? "there")}, your ${escapeHtml(appt.service.name)} appointment has been moved to <strong>${displayDate} at ${displayTime}</strong>.</p>`,
+          ctx
+        ),
+      ]);
+    } catch (err) {
+      logger.error("sendAppointmentReschedule failed", err, { appointmentId });
+    }
+  }
+
+  /**
+   * Alert staff when a conversation is escalated to a human.
+   */
+  async sendEscalationAlert(input: {
+    businessId: string;
+    conversationId: string;
+    reason: string;
+    urgency: string;
+    summary?: string | null;
+    customerPhone?: string | null;
+  }): Promise<void> {
+    try {
+      const config = await prisma.aIConfiguration.findUnique({
+        where: { businessId: input.businessId },
+        include: { business: { select: { name: true } } },
+      });
+      if (!config) return;
+
+      const businessName = config.business?.name ?? "Business";
+
+      const body = [
+        `[${input.urgency.toUpperCase()}] Escalation at ${businessName}`,
+        `Reason: ${input.reason}`,
+        input.summary ? `Summary: ${input.summary}` : "",
+        input.customerPhone ? `Customer: ${input.customerPhone}` : "",
+        `Conversation: ${input.conversationId}`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+      const client = getTwilioClient();
+      if (client && fromNumber && config.humanHandoffPhone) {
+        await client.messages.create({
+          body,
+          from: fromNumber,
+          to: config.humanHandoffPhone,
+        });
+      }
+
+      const resend = getResendClient();
+      const fromEmail = process.env.RESEND_FROM_EMAIL;
+      if (resend && fromEmail && config.humanHandoffEmail) {
+        await resend.emails.send({
+          from: fromEmail,
+          to: [config.humanHandoffEmail],
+          subject: `[Escalation] ${businessName} — ${input.reason}`,
+          html: `<pre style="font-family:sans-serif;white-space:pre-wrap">${escapeHtml(body)}</pre>`,
+        });
+      }
+    } catch (err) {
+      logger.error("sendEscalationAlert failed", err, {
+        businessId: input.businessId,
+        conversationId: input.conversationId,
+      });
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async loadAppointmentContext(appointmentId: string, businessId: string): Promise<any | null> {
+    const appt = await prisma.appointment.findFirst({
+      where: { id: appointmentId, businessId },
+      include: {
+        service: { select: { name: true } },
+        customer: { select: { name: true, phone: true, email: true, smsOptIn: true } },
+        business: {
+          select: { name: true, phone: true, timezone: true },
+        },
+      },
+    });
+    if (!appt) {
+      logger.warn("Notification: appointment not found", { appointmentId });
+      return null;
+    }
+    return appt;
+  }
+
+  private async sendRawSMS(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    appt: any,
+    body: string,
+    ctx: Record<string, string>
+  ): Promise<void> {
+    if (!appt.customer.smsOptIn || !appt.customer.phone) return;
+    const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+    const client = getTwilioClient();
+    if (!client || !fromNumber) return;
+    try {
+      await client.messages.create({
+        body,
+        from: fromNumber,
+        to: appt.customer.phone,
+      });
+      logger.info("SMS notification sent", ctx);
+    } catch (err) {
+      logger.error("SMS notification failed", err, ctx);
+    }
+  }
+
+  private async sendRawEmail(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    appt: any,
+    subject: string,
+    htmlBody: string,
+    ctx: Record<string, string>
+  ): Promise<void> {
+    if (!appt.customer.email) return;
+    const fromEmail = process.env.RESEND_FROM_EMAIL;
+    const resend = getResendClient();
+    if (!resend || !fromEmail) return;
+    try {
+      await resend.emails.send({
+        from: fromEmail,
+        to: [appt.customer.email],
+        subject,
+        html: `<!DOCTYPE html><html><body style="font-family:sans-serif;padding:24px">${htmlBody}</body></html>`,
+      });
+      logger.info("Email notification sent", ctx);
+    } catch (err) {
+      logger.error("Email notification failed", err, ctx);
+    }
+  }
 }
 
 export const notificationService = new NotificationService();

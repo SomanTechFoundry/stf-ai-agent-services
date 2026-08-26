@@ -13,7 +13,13 @@ import {
   getFAQsTool,
 } from "./business-tools";
 import { findOrCreateCustomerTool } from "./customer-tools";
-import { checkAvailabilityTool, createAppointmentTool } from "./booking-tools";
+import {
+  checkAvailabilityTool,
+  createAppointmentTool,
+  listCustomerAppointmentsTool,
+  cancelAppointmentTool,
+  rescheduleAppointmentTool,
+} from "./booking-tools";
 import { handoffToHumanTool } from "./escalation-tools";
 import type { AgentTool } from "./types";
 
@@ -33,6 +39,9 @@ export const SALON_TOOLS: AgentTool[] = [
   findOrCreateCustomerTool,
   checkAvailabilityTool,
   createAppointmentTool,
+  listCustomerAppointmentsTool,
+  cancelAppointmentTool,
+  rescheduleAppointmentTool,
   handoffToHumanTool,
 ];
 
@@ -52,5 +61,8 @@ export {
   findOrCreateCustomerTool,
   checkAvailabilityTool,
   createAppointmentTool,
+  listCustomerAppointmentsTool,
+  cancelAppointmentTool,
+  rescheduleAppointmentTool,
   handoffToHumanTool,
 };

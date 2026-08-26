@@ -251,6 +251,40 @@ export class ConversationService {
   }
 
   /**
+   * List conversations for the owner dashboard (newest first).
+   */
+  async listForDashboard(
+    businessId: string,
+    options?: { limit?: number; status?: ConversationStatus }
+  ) {
+    const limit = Math.min(options?.limit ?? 50, 100);
+    const where = {
+      businessId,
+      ...(options?.status ? { status: options.status } : {}),
+    };
+
+    const [conversations, total] = await Promise.all([
+      prisma.conversation.findMany({
+        where,
+        include: {
+          customer: { select: { name: true, phone: true, email: true } },
+          messages: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: { content: true, role: true, createdAt: true },
+          },
+          _count: { select: { messages: true } },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: limit,
+      }),
+      prisma.conversation.count({ where }),
+    ]);
+
+    return { conversations, total };
+  }
+
+  /**
    * Rough cost estimate in USD cents.
    * Used for approximate cost tracking — not for billing customers.
    * Update these rates periodically as AI pricing changes.

@@ -4,6 +4,7 @@
 
 import { z } from "zod";
 import { conversationService } from "@/lib/services/conversation.service";
+import { notificationService } from "@/lib/services/notification.service";
 import { prisma } from "@/lib/db/prisma";
 import { logger } from "@/lib/logger";
 import type { AgentTool, ToolContext } from "./types";
@@ -79,6 +80,20 @@ export const handoffToHumanTool: AgentTool = {
         conversationId: context.conversationId,
         reason,
         urgency,
+      });
+
+      const conversation = await prisma.conversation.findUnique({
+        where: { id: context.conversationId },
+        select: { channelIdentifier: true },
+      });
+
+      void notificationService.sendEscalationAlert({
+        businessId: context.businessId,
+        conversationId: context.conversationId,
+        reason,
+        urgency,
+        summary: summary ?? null,
+        customerPhone: conversation?.channelIdentifier ?? null,
       });
 
       return toolSuccess({

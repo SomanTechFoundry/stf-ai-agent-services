@@ -5,19 +5,21 @@
   "description": "Multi-tenant AI Agent Services Platform for local businesses",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:migrate:prod": "prisma migrate deploy",
     "db:studio": "prisma studio",
-    "db:seed": "ts-node --project tsconfig.seed.json prisma/seed.ts"
+    "db:seed": "ts-node --project tsconfig.seed.json prisma/seed.ts",
+    "db:bootstrap-demo": "node scripts/bootstrap-demo.mjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

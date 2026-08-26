@@ -10,8 +10,10 @@ Operate AI-powered customer-facing agents for local businesses (salons, auto rep
 
 ## Current Phase
 
-**Phase 1 — Foundation** ✅  
-Environment, database schema, logging, error handling, testing infrastructure, AI provider abstraction.
+**Phases 1–6 complete for first production test** ✅  
+Foundation, multi-tenant APIs, AI agent + booking, SMS/email, owner dashboard, rate limiting, health checks, Vercel deploy config.
+
+**Next:** Deploy with [docs/GO_LIVE.md](docs/GO_LIVE.md), test as a customer, then iterate.
 
 ## Tech Stack
 

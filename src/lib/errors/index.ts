@@ -137,6 +137,13 @@ export class ForbiddenError extends AppError {
   }
 }
 
+export class RateLimitedError extends AppError {
+  constructor(message = "Too many requests. Please try again shortly.") {
+    super(ErrorCode.RATE_LIMITED, message, 429);
+    this.name = "RateLimitedError";
+  }
+}
+
 export class TenantIsolationError extends AppError {
   constructor() {
     super(

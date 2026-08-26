@@ -52,6 +52,9 @@ export function errorResponse(
       errorCode: appError.code,
       detail: appError.detail,
     });
+    void import("@/lib/monitoring/sentry").then(({ captureException }) =>
+      captureException(appError, context)
+    );
   } else {
     logger.warn("Client error", {
       ...context,

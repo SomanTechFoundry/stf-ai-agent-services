@@ -33,6 +33,8 @@ import { successResponse, errorResponse } from "@/lib/utils/api-response";
 import { generateRequestId } from "@/lib/utils/id";
 import { logger } from "@/lib/logger";
 import { toAppError } from "@/lib/errors";
+import { env } from "@/lib/config/env";
+import { checkRateLimit, getClientIp } from "@/lib/security/rate-limit";
 import type { ConversationChannel } from "@prisma/client";
 
 const chatRequestSchema = z.object({
@@ -46,6 +48,13 @@ const chatRequestSchema = z.object({
 
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId();
+
+  try {
+    const ip = getClientIp(request);
+    checkRateLimit(`agent:${ip}`, env().rateLimit.agentRequestsPerMinute);
+  } catch (err) {
+    return errorResponse(err, { requestId });
+  }
 
   const body = await request.json().catch(() => ({}));
   const input = parseBody(chatRequestSchema, body);

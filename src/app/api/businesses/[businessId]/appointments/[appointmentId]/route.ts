@@ -6,6 +6,7 @@
 
 import { type NextRequest } from "next/server";
 import { z } from "zod";
+import { requireApiKey } from "@/lib/auth";
 import { appointmentService } from "@/lib/services/appointment.service";
 import { parseBody } from "@/lib/validation";
 import { successResponse, errorResponse } from "@/lib/utils/api-response";
@@ -19,6 +20,7 @@ type RouteContext = { params: Promise<{ businessId: string; appointmentId: strin
 export async function GET(_request: NextRequest, { params }: RouteContext) {
   const requestId = generateRequestId();
   try {
+    requireApiKey(request);
     const { businessId, appointmentId } = await params;
     const appointment = await appointmentService.getById(businessId, appointmentId);
     return successResponse(appointment, 200, { requestId });
@@ -46,6 +48,7 @@ const patchSchema = z.discriminatedUnion("action", [
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const requestId = generateRequestId();
   try {
+    requireApiKey(request);
     const { businessId, appointmentId } = await params;
     const body  = await request.json();
     const input = parseBody(patchSchema, body);
@@ -81,6 +84,7 @@ const deleteSchema = z.object({
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
   const requestId = generateRequestId();
   try {
+    requireApiKey(request);
     const { businessId, appointmentId } = await params;
     let reason: string | undefined;
 

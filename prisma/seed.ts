@@ -7,7 +7,17 @@
  * NEVER run this against production.
  */
 
-import { PrismaClient, BusinessIndustry, DayOfWeek } from "@prisma/client";
+import { PrismaClient, BusinessIndustry, DayOfWeek, UserRole } from "@prisma/client";
+import { scrypt, randomBytes } from "crypto";
+import { promisify } from "util";
+
+const scryptAsync = promisify(scrypt);
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = randomBytes(16).toString("hex");
+  const derived = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `${salt}:${derived.toString("hex")}`;
+}
 
 const prisma = new PrismaClient();
 
@@ -183,6 +193,30 @@ async function main() {
       },
     });
   }
+
+  // ---- Dashboard Owner User ----
+  const ownerEmail = "owner@sunsetsalon.example";
+  const ownerPassword = "Sunset2026!";
+  const passwordHash = await hashPassword(ownerPassword);
+
+  await prisma.user.upsert({
+    where: { businessId_email: { businessId: business.id, email: ownerEmail } },
+    update: { passwordHash, isActive: true, role: UserRole.BUSINESS_OWNER },
+    create: {
+      businessId: business.id,
+      email: ownerEmail,
+      name: "Sunset Salon Owner",
+      role: UserRole.BUSINESS_OWNER,
+      passwordHash,
+      isActive: true,
+    },
+  });
+
+  console.log("\n--- Dashboard login (local dev) ---");
+  console.log(`  URL:      http://localhost:3000/dashboard/login`);
+  console.log(`  Email:    ${ownerEmail}`);
+  console.log(`  Password: ${ownerPassword}`);
+  console.log("-----------------------------------\n");
 
   console.log("Seed completed successfully.");
 }

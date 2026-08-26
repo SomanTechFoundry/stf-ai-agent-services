@@ -13,7 +13,7 @@ import { staffService } from "@/lib/services/staff.service";
 import { appointmentService } from "@/lib/services/appointment.service";
 import { notificationService } from "@/lib/services/notification.service";
 import { businessService } from "@/lib/services/business.service";
-import { resolveRelativeDate } from "@/lib/utils/date-time";
+import { resolveRelativeDate, utcToLocal } from "@/lib/utils/date-time";
 import { logger } from "@/lib/logger";
 import type { AgentTool, ToolContext } from "./types";
 import { toolSuccess, toolError } from "./types";
@@ -343,6 +343,243 @@ export const createAppointmentTool: AgentTool = {
       return toolError(
         "I was unable to complete the booking at this time. Please call us directly to book your appointment."
       );
+    }
+  },
+};
+
+// ============================================================
+// listCustomerAppointments
+// ============================================================
+
+const listAppointmentsSchema = z.object({
+  customerId: z.string().min(1),
+  includePast: z.boolean().optional(),
+});
+
+export const listCustomerAppointmentsTool: AgentTool = {
+  definition: {
+    name: "listCustomerAppointments",
+    description:
+      "List a customer's upcoming (or all) appointments. " +
+      "Call this when a customer asks about their bookings, wants to cancel, or reschedule. " +
+      "Requires the customerId from findOrCreateCustomer.",
+    parameters: {
+      type: "object",
+      properties: {
+        customerId: {
+          type: "string",
+          description: "Customer ID from findOrCreateCustomer",
+        },
+        includePast: {
+          type: "boolean",
+          description: "Include past/completed appointments (default: false)",
+        },
+      },
+      required: ["customerId"],
+    },
+  },
+
+  async execute(args: unknown, context: ToolContext) {
+    const parsed = listAppointmentsSchema.safeParse(args ?? {});
+    if (!parsed.success) {
+      return toolError("I need the customer ID to look up their appointments.");
+    }
+
+    const { customerId, includePast } = parsed.data;
+
+    try {
+      const business = await businessService.getById(context.businessId);
+      const today = new Date().toISOString().slice(0, 10);
+
+      const result = await appointmentService.list(context.businessId, {
+        customerId,
+        dateFrom: includePast ? undefined : today,
+        limit: 20,
+      });
+
+      const appointments = result.appointments
+        .filter((a) => includePast || !["CANCELLED", "COMPLETED", "NO_SHOW"].includes(a.status))
+        .map((a) => {
+          const local = utcToLocal(a.startTime, business.timezone);
+          return {
+            appointmentId: a.id,
+            status: a.status,
+            service: a.service.name,
+            staff: a.staff?.name ?? null,
+            date: local.date,
+            time: local.time,
+          };
+        });
+
+      return toolSuccess({
+        appointments,
+        count: appointments.length,
+        message:
+          appointments.length === 0
+            ? "No upcoming appointments found for this customer."
+            : undefined,
+      });
+    } catch (err) {
+      logger.error("listCustomerAppointments tool error", err, {
+        businessId: context.businessId,
+      });
+      return toolError("Unable to look up appointments right now.");
+    }
+  },
+};
+
+// ============================================================
+// cancelAppointment
+// ============================================================
+
+const cancelAppointmentSchema = z.object({
+  appointmentId: z.string().min(1),
+  reason: z.string().optional(),
+});
+
+export const cancelAppointmentTool: AgentTool = {
+  definition: {
+    name: "cancelAppointment",
+    description:
+      "Cancel an existing appointment. " +
+      "Call listCustomerAppointments first to find the appointmentId. " +
+      "Confirm with the customer before cancelling.",
+    parameters: {
+      type: "object",
+      properties: {
+        appointmentId: {
+          type: "string",
+          description: "The appointment ID to cancel",
+        },
+        reason: {
+          type: "string",
+          description: "Optional reason for cancellation",
+        },
+      },
+      required: ["appointmentId"],
+    },
+  },
+
+  async execute(args: unknown, context: ToolContext) {
+    const parsed = cancelAppointmentSchema.safeParse(args ?? {});
+    if (!parsed.success) {
+      return toolError("I need the appointment ID to cancel.");
+    }
+
+    const { appointmentId, reason } = parsed.data;
+
+    try {
+      const updated = await appointmentService.cancel(
+        context.businessId,
+        appointmentId,
+        reason
+      );
+
+      await conversationService.updateAgentState(context.conversationId, {
+        bookingStatus: "cancelled",
+        appointmentId,
+      });
+
+      void notificationService.sendAppointmentCancellation(appointmentId, context.businessId);
+
+      const business = await businessService.getById(context.businessId);
+      const local = utcToLocal(updated.startTime, business.timezone);
+
+      return toolSuccess({
+        appointmentId: updated.id,
+        status: updated.status,
+        date: local.date,
+        time: local.time,
+        message: "Appointment cancelled successfully.",
+      });
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("Cannot cancel")) {
+        return toolError(err.message);
+      }
+      logger.error("cancelAppointment tool error", err, {
+        businessId: context.businessId,
+      });
+      return toolError("Unable to cancel the appointment. Please call us directly.");
+    }
+  },
+};
+
+// ============================================================
+// rescheduleAppointment
+// ============================================================
+
+const rescheduleAppointmentSchema = z.object({
+  appointmentId: z.string().min(1),
+  date: z.string().min(1),
+  time: z.string().regex(/^\d{2}:\d{2}$/),
+});
+
+export const rescheduleAppointmentTool: AgentTool = {
+  definition: {
+    name: "rescheduleAppointment",
+    description:
+      "Reschedule an existing appointment to a new date and time. " +
+      "Call checkAvailability for the new date first, then confirm with the customer.",
+    parameters: {
+      type: "object",
+      properties: {
+        appointmentId: {
+          type: "string",
+          description: "The appointment ID to reschedule",
+        },
+        date: {
+          type: "string",
+          description: "New date in YYYY-MM-DD format (business local time)",
+        },
+        time: {
+          type: "string",
+          description: "New time in HH:MM 24-hour format",
+        },
+      },
+      required: ["appointmentId", "date", "time"],
+    },
+  },
+
+  async execute(args: unknown, context: ToolContext) {
+    const parsed = rescheduleAppointmentSchema.safeParse(args ?? {});
+    if (!parsed.success) {
+      return toolError("I need the appointment ID, new date, and new time to reschedule.");
+    }
+
+    const { appointmentId, date: rawDate, time } = parsed.data;
+
+    const dateResult = await resolveDateOrError(context.businessId, rawDate);
+    if ("error" in dateResult) return toolError(dateResult.error);
+    const date = dateResult.date;
+
+    try {
+      const updated = await appointmentService.reschedule(
+        context.businessId,
+        appointmentId,
+        date,
+        time
+      );
+
+      void notificationService.sendAppointmentReschedule(appointmentId, context.businessId);
+
+      const business = await businessService.getById(context.businessId);
+      const local = utcToLocal(updated.startTime, business.timezone);
+
+      return toolSuccess({
+        appointmentId: updated.id,
+        status: updated.status,
+        date: local.date,
+        time: local.time,
+        message: "Appointment rescheduled successfully.",
+      });
+    } catch (err) {
+      if (err instanceof Error && (err.message.includes("not available") || err.message.includes("Cannot reschedule"))) {
+        return toolError(err.message);
+      }
+      logger.error("rescheduleAppointment tool error", err, {
+        businessId: context.businessId,
+      });
+      return toolError("Unable to reschedule. Please try another time or call us directly.");
     }
   },
 };
