@@ -8,14 +8,17 @@
  * - No raw user input ever reaches the database
  */
 
-import { z, ZodSchema } from "zod";
+import { z } from "zod";
 import { ValidationError } from "@/lib/errors";
 
 // ============================================================
 // Parse helper — converts ZodError into our ValidationError type
 // ============================================================
 
-export function parseBody<T>(schema: ZodSchema<T>, data: unknown): T {
+export function parseBody<S extends z.ZodTypeAny>(
+  schema: S,
+  data: unknown
+): z.output<S> {
   const result = schema.safeParse(data);
   if (!result.success) {
     const fields: Record<string, string> = {};
@@ -104,7 +107,7 @@ export const createBusinessSchema = z.object({
 
 export const updateBusinessSchema = createBusinessSchema.partial().omit({ slug: true });
 
-export type CreateBusinessInput = z.infer<typeof createBusinessSchema>;
+export type CreateBusinessInput = z.output<typeof createBusinessSchema>;
 export type UpdateBusinessInput = z.infer<typeof updateBusinessSchema>;
 
 // ============================================================
@@ -129,7 +132,7 @@ export const createCustomerSchema = customerBaseSchema.refine(
 // Update does not require phone/email — caller may update any subset of fields
 export const updateCustomerSchema = customerBaseSchema.partial();
 
-export type CreateCustomerInput = z.infer<typeof createCustomerSchema>;
+export type CreateCustomerInput = z.output<typeof customerBaseSchema>;
 export type UpdateCustomerInput = z.infer<typeof updateCustomerSchema>;
 
 // ============================================================
@@ -149,7 +152,7 @@ export const createServiceSchema = z.object({
 
 export const updateServiceSchema = createServiceSchema.partial();
 
-export type CreateServiceInput = z.infer<typeof createServiceSchema>;
+export type CreateServiceInput = z.output<typeof createServiceSchema>;
 export type UpdateServiceInput = z.infer<typeof updateServiceSchema>;
 
 // ============================================================
@@ -169,7 +172,7 @@ export const createStaffSchema = z.object({
 
 export const updateStaffSchema = createStaffSchema.partial();
 
-export type CreateStaffInput = z.infer<typeof createStaffSchema>;
+export type CreateStaffInput = z.output<typeof createStaffSchema>;
 export type UpdateStaffInput = z.infer<typeof updateStaffSchema>;
 
 // ============================================================

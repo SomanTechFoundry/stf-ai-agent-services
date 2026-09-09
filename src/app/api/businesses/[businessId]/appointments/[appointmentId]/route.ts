@@ -17,7 +17,7 @@ type RouteContext = { params: Promise<{ businessId: string; appointmentId: strin
 
 // ── Get ───────────────────────────────────────────────────────────────────────
 
-export async function GET(_request: NextRequest, { params }: RouteContext) {
+export async function GET(request: NextRequest, { params }: RouteContext) {
   const requestId = generateRequestId();
   try {
     requireApiKey(request);

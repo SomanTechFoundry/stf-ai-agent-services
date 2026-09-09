@@ -271,10 +271,10 @@ export class AppointmentService {
       });
       if (!staff) throw new NotFoundError("Staff", resolvedStaffId);
       if (staff.services.length === 0) {
-        throw new ValidationError([{
-          path: "staffId",
-          message: `${staff.name} does not perform that service`,
-        }]);
+        throw new ValidationError(
+          `${staff.name} does not perform that service`,
+          { staffId: `${staff.name} does not perform that service` }
+        );
       }
     } else {
       // Auto-assign: first available staff for this service
@@ -295,10 +295,12 @@ export class AppointmentService {
 
     // Lead-time check
     if (isSlotTooSoon(input.date, input.time, timezone, business.bookingLeadTimeMinutes)) {
-      throw new ValidationError([{
-        path: "time",
-        message: `Appointments require at least ${business.bookingLeadTimeMinutes} minutes notice.`,
-      }]);
+      throw new ValidationError(
+        `Appointments require at least ${business.bookingLeadTimeMinutes} minutes notice.`,
+        {
+          time: `Appointments require at least ${business.bookingLeadTimeMinutes} minutes notice.`,
+        }
+      );
     }
 
     // Conflict check (serialised using Prisma transaction)
@@ -425,7 +427,9 @@ export class AppointmentService {
     const appt = await this.getById(businessId, appointmentId);
     if (appt.status === "CANCELLED") return appt;
     if (appt.status === "COMPLETED") {
-      throw new ValidationError([{ path: "status", message: "Cannot cancel a completed appointment." }]);
+      throw new ValidationError("Cannot cancel a completed appointment.", {
+        status: "Cannot cancel a completed appointment.",
+      });
     }
 
     const updated = await prisma.appointment.update({
@@ -465,7 +469,10 @@ export class AppointmentService {
   ): Promise<Appointment> {
     const appt = await this.getById(businessId, appointmentId);
     if (["CANCELLED", "COMPLETED", "NO_SHOW"].includes(appt.status)) {
-      throw new ValidationError([{ path: "status", message: `Cannot reschedule a ${appt.status.toLowerCase()} appointment.` }]);
+      throw new ValidationError(
+        `Cannot reschedule a ${appt.status.toLowerCase()} appointment.`,
+        { status: `Cannot reschedule a ${appt.status.toLowerCase()} appointment.` }
+      );
     }
 
     const business = await prisma.business.findUnique({
@@ -480,7 +487,9 @@ export class AppointmentService {
     const utcLocal = utcToLocal(newStartTime, business.timezone);
 
     if (isSlotTooSoon(utcLocal.date, utcLocal.time, business.timezone, business.bookingLeadTimeMinutes)) {
-      throw new ValidationError([{ path: "time", message: "Not enough lead time for rescheduled appointment." }]);
+      throw new ValidationError("Not enough lead time for rescheduled appointment.", {
+        time: "Not enough lead time for rescheduled appointment.",
+      });
     }
 
     return prisma.$transaction(async (tx) => {

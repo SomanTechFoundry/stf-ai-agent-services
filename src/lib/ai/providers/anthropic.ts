@@ -26,6 +26,10 @@ export class AnthropicProvider implements AIProvider {
     );
   }
 
+  async stream(request: AICompletionRequest): Promise<AICompletionResponse> {
+    return this.complete(request);
+  }
+
   async healthCheck(): Promise<boolean> {
     return false;
   }

@@ -5,6 +5,7 @@
 
 import { type NextRequest } from "next/server";
 import { z } from "zod";
+import { type AppointmentStatus } from "@prisma/client";
 import { requireApiKey } from "@/lib/auth";
 import { appointmentService } from "@/lib/services/appointment.service";
 import { parseBody } from "@/lib/validation";
@@ -25,7 +26,7 @@ export async function GET(
     const sp = request.nextUrl.searchParams;
 
     const filters = {
-      status:     (sp.get("status") as Parameters<typeof appointmentService.list>[1]["status"]) ?? undefined,
+      status:     (sp.get("status") as AppointmentStatus | null) ?? undefined,
       staffId:    sp.get("staffId")    ?? undefined,
       customerId: sp.get("customerId") ?? undefined,
       dateFrom:   sp.get("dateFrom")   ?? undefined,

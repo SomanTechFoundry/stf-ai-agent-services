@@ -25,6 +25,7 @@ import {
   GoogleGenerativeAI,
   HarmCategory,
   HarmBlockThreshold,
+  SchemaType,
   type Content,
   type Tool,
   type FunctionDeclaration,
@@ -360,15 +361,15 @@ export class GeminiProvider implements AIProvider {
   }
 
   private buildTools(toolDefs: AIToolDefinition[]): Tool[] {
-    const functionDeclarations: FunctionDeclaration[] = toolDefs.map((t) => ({
+    const functionDeclarations = toolDefs.map((t) => ({
       name: t.name,
       description: t.description,
       parameters: {
-        type: "object" as const,
+        type: SchemaType.OBJECT,
         properties: t.parameters.properties as Record<string, unknown>,
         required: t.parameters.required ?? [],
       },
-    }));
+    })) as FunctionDeclaration[];
     return [{ functionDeclarations }];
   }
 }
