@@ -103,8 +103,10 @@ export default function DashboardLoginPage() {
         </form>
 
         <p className="text-xs text-center text-gray-400 mt-4">
-          Demo credentials are pre-filled. Run{" "}
-          <code className="text-gray-500">npm run db:seed</code> if login fails.
+          Demo credentials are pre-filled and created automatically on first sign-in.
+          <br />
+          Default: <code className="text-gray-500">owner@sunsetsalon.example</code> /{" "}
+          <code className="text-gray-500">Sunset2026!</code>
         </p>
       </div>
     </main>

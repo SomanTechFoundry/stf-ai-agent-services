@@ -13,6 +13,10 @@ import { successResponse, errorResponse } from "@/lib/utils/api-response";
 import { UnauthorizedError } from "@/lib/errors";
 import { generateRequestId } from "@/lib/utils/id";
 import { checkRateLimit, getClientIp } from "@/lib/security/rate-limit";
+import {
+  ensureDemoTenant,
+  getDemoOwnerCredentials,
+} from "@/lib/setup/ensure-demo";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -27,6 +31,12 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => ({}));
     const { email, password } = parseBody(loginSchema, body);
+
+    // If logging in with demo credentials, ensure demo tenant/owner exist first
+    const demo = getDemoOwnerCredentials();
+    if (email.toLowerCase() === demo.email) {
+      await ensureDemoTenant();
+    }
 
     const user = await prisma.user.findFirst({
       where: { email: email.toLowerCase(), isActive: true },

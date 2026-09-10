@@ -8,6 +8,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/db/prisma";
+import { ensureDemoTenantIfNeeded } from "@/lib/setup/ensure-demo";
 import { ChatWidget } from "./ChatWidget";
 
 interface Props {
@@ -15,6 +16,9 @@ interface Props {
 }
 
 async function getBusinessData(slug: string) {
+  // Auto-create Sunset Salon demo data on first visit (local + Vercel)
+  await ensureDemoTenantIfNeeded(slug);
+
   const business = await prisma.business.findUnique({
     where: { slug },
     select: {

@@ -44,23 +44,32 @@ beforeAll(async () => {
     bookingMaxDaysAhead: 60,
     cancellationPolicyHours: 24,
   });
-});
+}, 60_000);
 
 afterAll(async () => {
-  // Clean up test data in correct order (respect FK constraints)
-  await prisma.customer.deleteMany({
-    where: { businessId: { in: [businessA.id, businessB.id] } },
-  });
-  await prisma.service.deleteMany({
-    where: { businessId: { in: [businessA.id, businessB.id] } },
-  });
-  await prisma.staff.deleteMany({
-    where: { businessId: { in: [businessA.id, businessB.id] } },
-  });
-  await prisma.business.deleteMany({
-    where: { id: { in: [businessA.id, businessB.id] } },
-  });
-  await prisma.$disconnect();
+  try {
+    // Guard: beforeAll may have failed, leaving businesses undefined
+    const ids = [businessA?.id, businessB?.id].filter(
+      (id): id is string => typeof id === "string" && id.length > 0
+    );
+
+    if (ids.length > 0) {
+      await prisma.customer.deleteMany({
+        where: { businessId: { in: ids } },
+      });
+      await prisma.service.deleteMany({
+        where: { businessId: { in: ids } },
+      });
+      await prisma.staff.deleteMany({
+        where: { businessId: { in: ids } },
+      });
+      await prisma.business.deleteMany({
+        where: { id: { in: ids } },
+      });
+    }
+  } finally {
+    await prisma.$disconnect();
+  }
 });
 
 // ============================================================

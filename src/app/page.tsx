@@ -36,8 +36,8 @@ export default function HomePage() {
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
             <h2 className="font-semibold text-gray-900 mb-1">Owner Dashboard</h2>
             <p className="text-sm text-gray-500 mb-4">
-              View appointments, conversations, and business settings. Run{" "}
-              <code className="text-xs bg-gray-100 px-1 rounded">npm run db:seed</code> for demo login.
+              View appointments, conversations, and business settings. Demo login is
+              created automatically on first sign-in.
             </p>
             <Link
               href="/dashboard/login"
