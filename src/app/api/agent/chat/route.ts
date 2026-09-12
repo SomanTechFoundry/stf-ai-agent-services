@@ -62,11 +62,13 @@ export async function POST(request: NextRequest) {
   const acceptsSSE = request.headers.get("accept")?.includes("text/event-stream");
   const useStream  = input.stream ?? acceptsSSE ?? false;
 
-  logger.info("Agent chat request", {
+  logger.event("agent_chat_start", "Agent chat turn started", {
     requestId,
     businessId: input.businessId,
+    conversationId: input.conversationId,
     channel: input.channel,
     stream: useStream,
+    messageLength: input.message.length,
   });
 
   const agentInput = {
@@ -103,9 +105,23 @@ export async function POST(request: NextRequest) {
             toolsUsed:      result.toolsUsed,
             durationMs:     result.durationMs,
           });
+          logger.event("agent_chat_complete", "Agent stream turn completed", {
+            requestId,
+            businessId: input.businessId,
+            conversationId: result.conversationId,
+            toolsUsed: result.toolsUsed,
+            durationMs: result.durationMs,
+            outcome: "success",
+          });
         } catch (err) {
           const appErr = toAppError(err);
-          logger.error("Agent stream error", err, { requestId });
+          logger.error("Agent stream error", err, {
+            requestId,
+            event: "agent_chat_failed",
+            businessId: input.businessId,
+            outcome: "failure",
+            errorCode: appErr.code,
+          });
           emit({ type: "error", code: appErr.code, message: appErr.message });
         } finally {
           controller.close();
@@ -127,8 +143,16 @@ export async function POST(request: NextRequest) {
 
   try {
     const result = await runAgent(agentInput);
+    logger.event("agent_chat_complete", "Agent JSON turn completed", {
+      requestId,
+      businessId: input.businessId,
+      conversationId: result.conversationId,
+      toolsUsed: result.toolsUsed,
+      durationMs: result.durationMs,
+      outcome: "success",
+    });
     return successResponse(result, 200, { requestId });
   } catch (err) {
-    return errorResponse(err, { requestId });
+    return errorResponse(err, { requestId, event: "agent_chat_failed" });
   }
 }

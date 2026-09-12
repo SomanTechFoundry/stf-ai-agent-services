@@ -145,7 +145,7 @@ function AgentAvatar({ name }: { name: string }) {
     .slice(0, 2)
     .toUpperCase();
   return (
-    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-violet-600 text-white text-xs font-bold flex items-center justify-center select-none">
+    <div className="flex h-8 w-8 flex-shrink-0 select-none items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white">
       {initials}
     </div>
   );
@@ -168,7 +168,7 @@ function MessageBubble({ message, agentName }: { message: Message; agentName: st
         <div
           className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
             isUser
-              ? "bg-violet-600 text-white rounded-br-sm"
+              ? "rounded-br-sm bg-slate-900 text-white"
               : message.isError
               ? "bg-red-50 text-red-700 border border-red-200 rounded-bl-sm"
               : "bg-white text-gray-800 border border-gray-200 rounded-bl-sm shadow-sm"
@@ -378,8 +378,8 @@ export function ChatWidget({
   return (
     <div className="flex flex-col h-full max-w-2xl mx-auto w-full">
       {/* ── Header ──────────────────────────────────────────────── */}
-      <header className="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 shadow-sm">
-        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-violet-600 text-white font-bold flex items-center justify-center">
+      <header className="flex items-center gap-3 border-b border-stone-200 bg-white px-4 py-3 shadow-sm">
+        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-slate-900 font-bold text-white">
           {agentName[0]?.toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">
@@ -389,7 +389,7 @@ export function ChatWidget({
         <div className="text-right hidden sm:block">
           {businessLocation && <p className="text-xs text-gray-400">{businessLocation}</p>}
           {businessPhone && (
-            <a href={`tel:${businessPhone}`} className="text-xs text-violet-600 hover:underline font-medium">
+            <a href={`tel:${businessPhone}`} className="text-xs font-medium text-teal-800 hover:underline">
               {businessPhone}
             </a>
           )}
@@ -398,7 +398,7 @@ export function ChatWidget({
       </header>
 
       {/* ── Messages ───────────────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-gray-50">
+      <div className="flex-1 space-y-4 overflow-y-auto bg-[#f4f2ee] px-4 py-4">
         <div className="text-center py-2">
           <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1 rounded-full">Today</span>
         </div>
@@ -431,7 +431,7 @@ export function ChatWidget({
 
       {/* ── Input bar ──────────────────────────────────────────── */}
       <div className="px-4 py-3 bg-white border-t border-gray-200">
-        <div className="flex items-end gap-2 bg-gray-50 rounded-2xl border border-gray-200 px-4 py-2 focus-within:border-violet-400 focus-within:ring-1 focus-within:ring-violet-200 transition-all">
+        <div className="flex items-end gap-2 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-2 transition-all focus-within:border-teal-700 focus-within:ring-1 focus-within:ring-teal-700/20">
           <textarea
             ref={inputRef}
             value={input}
@@ -446,7 +446,7 @@ export function ChatWidget({
             onClick={sendMessage}
             disabled={!canSend}
             aria-label="Send message"
-            className="flex-shrink-0 w-8 h-8 rounded-full bg-violet-600 text-white flex items-center justify-center hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95"
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-slate-900 text-white transition-all hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40 active:scale-95"
           >
             <SendIcon />
           </button>

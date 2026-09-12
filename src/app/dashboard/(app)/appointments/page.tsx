@@ -160,14 +160,10 @@ export default function AppointmentsPage() {
       {loading ? (
         <p className="text-sm text-gray-500">Loading…</p>
       ) : appointments.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center">
-          <p className="text-gray-600 font-medium">No appointments in this range</p>
-          <p className="text-sm text-gray-400 mt-1">
-            Book one via the{" "}
-            <a href="/chat/sunset-salon" className="text-violet-600 hover:underline">
-              chat demo
-            </a>{" "}
-            to see it here.
+        <div className="rounded-xl border border-dashed border-stone-300 bg-white p-8 text-center">
+          <p className="font-medium text-stone-700">No appointments in this range</p>
+          <p className="mt-1 text-sm text-stone-500">
+            New bookings from customer chat or SMS will appear here.
           </p>
         </div>
       ) : (

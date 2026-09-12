@@ -13,10 +13,7 @@ import { successResponse, errorResponse } from "@/lib/utils/api-response";
 import { UnauthorizedError } from "@/lib/errors";
 import { generateRequestId } from "@/lib/utils/id";
 import { checkRateLimit, getClientIp } from "@/lib/security/rate-limit";
-import {
-  ensureDemoTenant,
-  getDemoOwnerCredentials,
-} from "@/lib/setup/ensure-demo";
+import { logger } from "@/lib/logger";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -25,31 +22,49 @@ const loginSchema = z.object({
 
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId();
+  const ip = getClientIp(request);
   try {
-    const ip = getClientIp(request);
     checkRateLimit(`login:${ip}`, 10, 60_000);
 
     const body = await request.json().catch(() => ({}));
     const { email, password } = parseBody(loginSchema, body);
+    const normalizedEmail = email.toLowerCase();
 
-    // If logging in with demo credentials, ensure demo tenant/owner exist first
-    const demo = getDemoOwnerCredentials();
-    if (email.toLowerCase() === demo.email) {
-      await ensureDemoTenant();
-    }
+    logger.event("dashboard_login_attempt", "Dashboard login attempted", {
+      requestId,
+      email: normalizedEmail,
+    });
 
     const user = await prisma.user.findFirst({
-      where: { email: email.toLowerCase(), isActive: true },
+      where: { email: normalizedEmail, isActive: true },
       include: {
         business: { select: { id: true, name: true, slug: true, status: true } },
       },
     });
 
     if (!user?.passwordHash || !(await verifyPassword(password, user.passwordHash))) {
+      logger.event(
+        "dashboard_login_failed",
+        "Dashboard login rejected — invalid credentials",
+        { requestId, email: normalizedEmail, outcome: "failure" },
+        "warn"
+      );
       throw new UnauthorizedError("Invalid email or password.");
     }
 
     if (user.business.status !== "ACTIVE" && user.business.status !== "TRIAL") {
+      logger.event(
+        "dashboard_login_failed",
+        "Dashboard login rejected — business not active",
+        {
+          requestId,
+          email: normalizedEmail,
+          businessId: user.businessId,
+          businessStatus: user.business.status,
+          outcome: "failure",
+        },
+        "warn"
+      );
       throw new UnauthorizedError("This business account is not active.");
     }
 
@@ -64,6 +79,14 @@ export async function POST(request: NextRequest) {
       email: user.email,
       name: user.name,
       role: user.role,
+    });
+
+    logger.event("dashboard_login_success", "Dashboard session created", {
+      requestId,
+      userId: user.id,
+      businessId: user.businessId,
+      role: user.role,
+      outcome: "success",
     });
 
     return successResponse(

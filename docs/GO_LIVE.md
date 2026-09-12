@@ -2,8 +2,9 @@
 
 Use this when you want a **public URL** so you can act like a customer and gradually improve.
 
-**Hosting:** Vercel + Neon (already in stack).  
-**Demo business:** Sunset Salon (`/chat/sunset-salon`).
+**Hosting:** Vercel + Neon (already in stack).
+
+**Branches:** `dev` is never deployed. Push `qa` for Preview. Push `prod` for Production. See [BRANCHES.md](./BRANCHES.md).
 
 ---
 

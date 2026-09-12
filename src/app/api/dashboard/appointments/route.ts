@@ -10,6 +10,7 @@ import { utcToLocal } from "@/lib/utils/date-time";
 import { prisma } from "@/lib/db/prisma";
 import { successResponse, errorResponse } from "@/lib/utils/api-response";
 import { generateRequestId } from "@/lib/utils/id";
+import { logger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
   const requestId = generateRequestId();
@@ -51,6 +52,17 @@ export async function GET(request: NextRequest) {
         service: a.service,
         staff: a.staff,
       };
+    });
+
+    logger.event("dashboard_appointments_list", "Owner listed appointments", {
+      requestId,
+      businessId: session.businessId,
+      userId: session.userId,
+      dateFrom,
+      dateTo,
+      status: status ?? "all",
+      count: appointments.length,
+      outcome: "success",
     });
 
     return successResponse(

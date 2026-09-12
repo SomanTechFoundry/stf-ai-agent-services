@@ -11,6 +11,7 @@ import { businessService } from "@/lib/services/business.service";
 import { parseBody } from "@/lib/validation";
 import { successResponse, errorResponse } from "@/lib/utils/api-response";
 import { generateRequestId } from "@/lib/utils/id";
+import { logger } from "@/lib/logger";
 
 const patchSettingsSchema = z.object({
   business: z
@@ -37,6 +38,11 @@ export async function GET() {
   const requestId = generateRequestId();
   try {
     const session = await requireDashboardSession();
+    logger.event("dashboard_settings_read", "Owner opened settings", {
+      requestId,
+      businessId: session.businessId,
+      userId: session.userId,
+    });
 
     const business = await prisma.business.findUnique({
       where: { id: session.businessId },
@@ -116,6 +122,15 @@ export async function PATCH(request: NextRequest) {
         },
       });
     }
+
+    logger.event("dashboard_settings_update", "Owner updated settings", {
+      requestId,
+      businessId: session.businessId,
+      userId: session.userId,
+      updatedBusiness: Boolean(input.business),
+      updatedAgent: Boolean(input.agent),
+      outcome: "success",
+    });
 
     return successResponse({ updated: true }, 200, { requestId });
   } catch (err) {

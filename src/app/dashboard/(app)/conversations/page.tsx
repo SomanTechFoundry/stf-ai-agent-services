@@ -100,12 +100,9 @@ export default function ConversationsPage() {
             <p className="p-4 text-sm text-gray-500">Loading…</p>
           ) : conversations.length === 0 ? (
             <div className="p-8 text-center">
-              <p className="text-gray-600 font-medium">No conversations yet</p>
-              <p className="text-sm text-gray-400 mt-1">
-                Start a chat at{" "}
-                <a href="/chat/sunset-salon" className="text-violet-600 hover:underline">
-                  /chat/sunset-salon
-                </a>
+              <p className="font-medium text-stone-700">No conversations yet</p>
+              <p className="mt-1 text-sm text-stone-500">
+                Customer chat and SMS threads will appear here.
               </p>
             </div>
           ) : (
@@ -116,7 +113,7 @@ export default function ConversationsPage() {
                     type="button"
                     onClick={() => openConversation(c.id)}
                     className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${
-                      selectedId === c.id ? "bg-violet-50" : ""
+                      selectedId === c.id ? "bg-teal-50" : ""
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2 mb-0.5">

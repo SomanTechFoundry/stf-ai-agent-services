@@ -76,7 +76,12 @@ export async function POST(request: NextRequest) {
     const body = (params.Body ?? "").trim();
 
     if (!(await validateTwilioSignature(request, params))) {
-      logger.warn("Twilio webhook: invalid signature", { requestId });
+      logger.event(
+        "twilio_sms_rejected",
+        "Inbound SMS rejected — invalid signature",
+        { requestId, outcome: "failure" },
+        "warn"
+      );
       return new Response("Forbidden", { status: 403 });
     }
 
@@ -92,7 +97,7 @@ export async function POST(request: NextRequest) {
       return twiml("This number is not configured. Please contact the business directly.");
     }
 
-    logger.info("Twilio inbound SMS", {
+    logger.event("twilio_sms_inbound", "Inbound SMS received", {
       requestId,
       businessId: business.id,
       from,
@@ -106,9 +111,22 @@ export async function POST(request: NextRequest) {
       customerMessage: body,
     });
 
+    logger.event("twilio_sms_replied", "Inbound SMS handled", {
+      requestId,
+      businessId: business.id,
+      conversationId: result.conversationId,
+      toolsUsed: result.toolsUsed,
+      durationMs: result.durationMs,
+      outcome: "success",
+    });
+
     return twiml(result.response || "Thanks for your message!");
   } catch (err) {
-    logger.error("Twilio webhook error", err, { requestId });
+    logger.error("Twilio webhook error", err, {
+      requestId,
+      event: "twilio_sms_failed",
+      outcome: "failure",
+    });
     return twiml("Sorry, something went wrong. Please try again or call us directly.");
   }
 }

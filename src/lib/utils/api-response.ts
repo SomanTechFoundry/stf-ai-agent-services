@@ -48,6 +48,8 @@ export function errorResponse(
 
   if (appError.httpStatus >= 500) {
     logger.error("Unhandled API error", appError, {
+      event: "api_error",
+      outcome: "failure",
       ...context,
       errorCode: appError.code,
       detail: appError.detail,
@@ -57,6 +59,8 @@ export function errorResponse(
     );
   } else {
     logger.warn("Client error", {
+      event: "api_client_error",
+      outcome: "failure",
       ...context,
       errorCode: appError.code,
       message: appError.message,

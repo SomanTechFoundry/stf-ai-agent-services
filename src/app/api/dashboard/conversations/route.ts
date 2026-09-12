@@ -6,6 +6,7 @@ import { requireDashboardSession } from "@/lib/auth/dashboard-auth";
 import { conversationService } from "@/lib/services/conversation.service";
 import { successResponse, errorResponse } from "@/lib/utils/api-response";
 import { generateRequestId } from "@/lib/utils/id";
+import { logger } from "@/lib/logger";
 
 export async function GET() {
   const requestId = generateRequestId();
@@ -31,6 +32,14 @@ export async function GET() {
           }
         : null,
     }));
+
+    logger.event("dashboard_conversations_list", "Owner listed conversations", {
+      requestId,
+      businessId: session.businessId,
+      userId: session.userId,
+      count: items.length,
+      outcome: "success",
+    });
 
     return successResponse({ conversations: items, total: result.total }, 200, {
       requestId,

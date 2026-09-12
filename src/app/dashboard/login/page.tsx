@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function DashboardLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("owner@sunsetsalon.example");
-  const [password, setPassword] = useState("Sunset2026!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -33,35 +34,37 @@ export default function DashboardLoginPage() {
       });
       const json = await res.json();
       if (!res.ok) {
-        setError(json?.error?.message ?? "Login failed.");
+        setError(json?.error?.message ?? "Unable to sign in.");
         return;
       }
       router.push("/dashboard/appointments");
       router.refresh();
     } catch {
-      setError("Network error. Is the dev server running?");
+      setError("Unable to reach the server. Please try again.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <p className="text-xs font-semibold uppercase tracking-wide text-violet-600 mb-2">
-            Phase 6A — Owner Dashboard
+    <main className="flex min-h-screen items-center justify-center bg-[#f4f2ee] p-6">
+      <div className="w-full max-w-md">
+        <div className="mb-8">
+          <Link href="/" className="text-[11px] font-semibold uppercase tracking-[0.18em] text-teal-800">
+            STF AI Agent Services
+          </Link>
+          <h1 className="mt-3 text-2xl font-semibold text-slate-900">Sign in</h1>
+          <p className="mt-1 text-sm text-stone-500">
+            Access appointments, conversations, and business settings.
           </p>
-          <h1 className="text-2xl font-bold text-gray-900">Sign in</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage appointments and conversations</p>
         </div>
 
         <form
           onSubmit={handleSubmit}
-          className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4"
+          className="space-y-4 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"
         >
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="email" className="mb-1 block text-sm font-medium text-stone-700">
               Email
             </label>
             <input
@@ -70,12 +73,12 @@ export default function DashboardLoginPage() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-slate-900 focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/20"
               required
             />
           </div>
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="password" className="mb-1 block text-sm font-medium text-stone-700">
               Password
             </label>
             <input
@@ -84,30 +87,23 @@ export default function DashboardLoginPage() {
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm text-slate-900 focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/20"
               required
             />
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
           )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white font-semibold text-sm py-2.5 rounded-xl transition-colors"
+            className="w-full rounded-lg bg-slate-900 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
           >
             {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>
-
-        <p className="text-xs text-center text-gray-400 mt-4">
-          Demo credentials are pre-filled and created automatically on first sign-in.
-          <br />
-          Default: <code className="text-gray-500">owner@sunsetsalon.example</code> /{" "}
-          <code className="text-gray-500">Sunset2026!</code>
-        </p>
       </div>
     </main>
   );

@@ -1,24 +1,25 @@
 /**
  * Structured logger for the platform.
  *
- * Design goals:
- * - Every log entry is structured JSON in production (parseable by Sentry/Datadog/etc.)
- * - Every entry can be correlated to a business, customer, or request
- * - Sensitive fields are never logged
- * - Log level is controlled by environment variable
+ * Production: newline-delimited JSON (Vercel / Datadog / Sentry).
+ * Development: readable one-line entries with context.
+ *
+ * Never log secrets. Context keys matching SENSITIVE_KEYS are redacted.
  */
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
 export interface LogContext {
+  event?: string;
+  outcome?: "success" | "failure" | "skipped";
+  service?: string;
   businessId?: string;
   customerId?: string;
   conversationId?: string;
-  requestId?: string;
   appointmentId?: string;
   userId?: string;
+  requestId?: string;
   tool?: string;
-  service?: string;
   durationMs?: number;
   [key: string]: unknown;
 }
@@ -27,6 +28,7 @@ interface LogEntry {
   level: LogLevel;
   message: string;
   timestamp: string;
+  service: string;
   context?: LogContext;
   error?: {
     name: string;
@@ -42,6 +44,8 @@ const LOG_LEVELS: Record<LogLevel, number> = {
   warn: 2,
   error: 3,
 };
+
+const SENSITIVE_KEY = /password|passwd|secret|token|authorization|api[_-]?key|cookie|session|credential/i;
 
 function getConfiguredLevel(): LogLevel {
   const envLevel = process.env.LOG_LEVEL?.toLowerCase() as LogLevel | undefined;
@@ -61,12 +65,31 @@ function formatError(err: unknown) {
   return { name: "UnknownError", message: String(err) };
 }
 
+function redactValue(value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  if (Array.isArray(value)) return value.map(redactValue);
+  if (typeof value === "object") return sanitizeContext(value as Record<string, unknown>);
+  return value;
+}
+
+export function sanitizeContext(context?: LogContext): LogContext | undefined {
+  if (!context) return undefined;
+  const clean: LogContext = {};
+  for (const [key, value] of Object.entries(context)) {
+    if (SENSITIVE_KEY.test(key)) {
+      clean[key] = "[REDACTED]";
+    } else {
+      clean[key] = redactValue(value);
+    }
+  }
+  return clean;
+}
+
 function writeLog(entry: LogEntry) {
   const configuredLevel = getConfiguredLevel();
   if (LOG_LEVELS[entry.level] < LOG_LEVELS[configuredLevel]) return;
 
   if (process.env.NODE_ENV === "production") {
-    // In production, output newline-delimited JSON for log aggregation
     const line = JSON.stringify(entry);
     if (entry.level === "error" || entry.level === "warn") {
       process.stderr.write(line + "\n");
@@ -74,10 +97,7 @@ function writeLog(entry: LogEntry) {
       process.stdout.write(line + "\n");
     }
   } else {
-    // In development, output human-readable format
-    const ctx = entry.context
-      ? ` ${JSON.stringify(entry.context)}`
-      : "";
+    const ctx = entry.context ? ` ${JSON.stringify(entry.context)}` : "";
     const errStr = entry.error
       ? `\n  Error: ${entry.error.name}: ${entry.error.message}${
           entry.error.stack ? "\n" + entry.error.stack : ""
@@ -101,7 +121,8 @@ function createEntry(
     level,
     message,
     timestamp: new Date().toISOString(),
-    context,
+    service: "stf-ai-agent-services",
+    context: sanitizeContext(context),
     error: err !== undefined ? formatError(err) : undefined,
   };
 }
@@ -123,10 +144,16 @@ export const logger = {
     writeLog(createEntry("error", message, context, err));
   },
 
-  /**
-   * Create a child logger pre-loaded with context.
-   * Useful for request-scoped logging.
-   */
+  /** Named operational event — prefer this for start/success/failure of a feature. */
+  event(
+    event: string,
+    message: string,
+    context?: Omit<LogContext, "event">,
+    level: LogLevel = "info"
+  ) {
+    writeLog(createEntry(level, message, { event, ...context }));
+  },
+
   withContext(baseContext: LogContext) {
     return {
       debug(message: string, context?: LogContext) {
@@ -140,6 +167,14 @@ export const logger = {
       },
       error(message: string, err?: unknown, context?: LogContext) {
         writeLog(createEntry("error", message, { ...baseContext, ...context }, err));
+      },
+      event(
+        event: string,
+        message: string,
+        context?: Omit<LogContext, "event">,
+        level: LogLevel = "info"
+      ) {
+        writeLog(createEntry(level, message, { ...baseContext, event, ...context }));
       },
     };
   },

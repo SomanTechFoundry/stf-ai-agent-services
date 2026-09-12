@@ -34,7 +34,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     const body = await request.json().catch(() => ({}));
     const input = parseBody(patchSchema, body);
 
-    logger.info("Dashboard appointment action", {
+    logger.event("dashboard_appointment_action", "Owner appointment action requested", {
       requestId,
       businessId: session.businessId,
       appointmentId,
@@ -64,8 +64,17 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       void notificationService.sendAppointmentReschedule(appointmentId, session.businessId);
     }
 
+    logger.event("dashboard_appointment_action", "Owner appointment action completed", {
+      requestId,
+      businessId: session.businessId,
+      appointmentId,
+      action: input.action,
+      userId: session.userId,
+      outcome: "success",
+    });
+
     return successResponse(updated, 200, { requestId });
   } catch (err) {
-    return errorResponse(err, { requestId });
+    return errorResponse(err, { requestId, event: "dashboard_appointment_action" });
   }
 }

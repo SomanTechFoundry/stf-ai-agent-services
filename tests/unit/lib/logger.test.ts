@@ -53,4 +53,24 @@ describe("logger", () => {
     logger.info("this should not appear either");
     expect(stdoutSpy).not.toHaveBeenCalled();
   });
+
+  it("redacts sensitive context keys", () => {
+    logger.info("auth attempt", { password: "secret", email: "a@b.com" });
+    const output = stdoutSpy.mock.calls[0][0] as string;
+    const parsed = JSON.parse(output.trim());
+    expect(parsed.context?.password).toBe("[REDACTED]");
+    expect(parsed.context?.email).toBe("a@b.com");
+  });
+
+  it("records named operational events", () => {
+    logger.event("dashboard_login_success", "signed in", {
+      userId: "u1",
+      outcome: "success",
+    });
+    const output = stdoutSpy.mock.calls[0][0] as string;
+    const parsed = JSON.parse(output.trim());
+    expect(parsed.context?.event).toBe("dashboard_login_success");
+    expect(parsed.context?.outcome).toBe("success");
+    expect(parsed.service).toBe("stf-ai-agent-services");
+  });
 });

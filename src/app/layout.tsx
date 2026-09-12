@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "STF AI Agent Services",
-  description: "Multi-tenant AI Agent Services Platform",
+  description: "AI receptionist platform for local businesses",
 };
 
 export default function RootLayout({

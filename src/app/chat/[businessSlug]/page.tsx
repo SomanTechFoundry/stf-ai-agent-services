@@ -8,7 +8,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/db/prisma";
-import { ensureDemoTenantIfNeeded } from "@/lib/setup/ensure-demo";
+import { logger } from "@/lib/logger";
 import { ChatWidget } from "./ChatWidget";
 
 interface Props {
@@ -16,9 +16,6 @@ interface Props {
 }
 
 async function getBusinessData(slug: string) {
-  // Auto-create Sunset Salon demo data on first visit (local + Vercel)
-  await ensureDemoTenantIfNeeded(slug);
-
   const business = await prisma.business.findUnique({
     where: { slug },
     select: {
@@ -67,10 +64,24 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ChatPage({ params }: Props) {
   const { businessSlug } = await params;
   const data = await getBusinessData(businessSlug);
-  if (!data) notFound();
+  if (!data) {
+    logger.event(
+      "chat_page_not_found",
+      "Chat page requested for unknown or inactive business",
+      { slug: businessSlug, outcome: "failure" },
+      "warn"
+    );
+    notFound();
+  }
+
+  logger.event("chat_page_view", "Customer chat page opened", {
+    businessId: data.businessId,
+    slug: businessSlug,
+    outcome: "success",
+  });
 
   return (
-    <main className="flex flex-col h-screen bg-gray-50">
+    <main className="flex h-screen flex-col bg-[#f4f2ee]">
       <ChatWidget
         businessId={data.businessId}
         businessName={data.name}

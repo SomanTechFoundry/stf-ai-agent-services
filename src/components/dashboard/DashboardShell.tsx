@@ -12,24 +12,30 @@ const NAV = [
 
 interface Props {
   businessName: string;
+  businessSlug?: string | null;
   userName: string;
   children: React.ReactNode;
 }
 
-export function DashboardShell({ businessName, userName, children }: Props) {
+export function DashboardShell({
+  businessName,
+  businessSlug,
+  userName,
+  children,
+}: Props) {
   const pathname = usePathname();
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      <aside className="w-56 shrink-0 border-r border-gray-200 bg-white flex flex-col">
-        <div className="p-5 border-b border-gray-100">
-          <p className="text-xs font-semibold uppercase tracking-wide text-violet-600 mb-1">
-            Owner Dashboard
+    <div className="flex min-h-screen bg-[#f4f2ee]">
+      <aside className="flex w-60 shrink-0 flex-col border-r border-stone-200 bg-white">
+        <div className="border-b border-stone-100 p-5">
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800">
+            Operations
           </p>
-          <h1 className="font-semibold text-gray-900 truncate">{businessName}</h1>
-          <p className="text-xs text-gray-500 mt-0.5 truncate">{userName}</p>
+          <h1 className="truncate font-semibold text-slate-900">{businessName}</h1>
+          <p className="mt-0.5 truncate text-xs text-stone-500">{userName}</p>
         </div>
-        <nav className="flex-1 p-3 space-y-0.5">
+        <nav className="flex-1 space-y-0.5 p-3">
           {NAV.map((item) => {
             const active = pathname.startsWith(item.href);
             return (
@@ -38,8 +44,8 @@ export function DashboardShell({ businessName, userName, children }: Props) {
                 href={item.href}
                 className={`block rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                   active
-                    ? "bg-violet-50 text-violet-700"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                    ? "bg-teal-50 text-teal-900"
+                    : "text-stone-600 hover:bg-stone-50 hover:text-slate-900"
                 }`}
               >
                 {item.label}
@@ -47,18 +53,20 @@ export function DashboardShell({ businessName, userName, children }: Props) {
             );
           })}
         </nav>
-        <div className="p-3 border-t border-gray-100 space-y-2">
-          <Link
-            href="/chat/sunset-salon"
-            className="block text-xs text-center text-gray-500 hover:text-violet-600 py-1"
-          >
-            Open chat demo →
-          </Link>
+        <div className="space-y-2 border-t border-stone-100 p-3">
+          {businessSlug && (
+            <Link
+              href={`/chat/${businessSlug}`}
+              className="block py-1 text-center text-xs text-stone-500 hover:text-teal-800"
+            >
+              Customer chat
+            </Link>
+          )}
           <LogoutButton />
         </div>
       </aside>
       <main className="flex-1 overflow-auto">
-        <div className="max-w-5xl mx-auto p-6 md:p-8">{children}</div>
+        <div className="mx-auto max-w-5xl p-6 md:p-8">{children}</div>
       </main>
     </div>
   );

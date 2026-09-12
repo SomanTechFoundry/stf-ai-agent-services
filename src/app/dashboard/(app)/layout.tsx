@@ -15,12 +15,13 @@ export default async function ProtectedDashboardLayout({
 
   const business = await prisma.business.findUnique({
     where: { id: session.businessId },
-    select: { name: true },
+    select: { name: true, slug: true },
   });
 
   return (
     <DashboardShell
       businessName={business?.name ?? "Business"}
+      businessSlug={business?.slug}
       userName={session.name}
     >
       {children}
