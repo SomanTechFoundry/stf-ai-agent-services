@@ -31,6 +31,16 @@ interface SettingsData {
   };
 }
 
+interface CalendarStatus {
+  oauthConfigured: boolean;
+  connected: boolean;
+  email: string | null;
+  calendarId: string;
+  lastSyncedAt: string | null;
+  lastError: string | null;
+  busyBlocks: Array<{ id: string; start: string; end: string; title: string }>;
+}
+
 export default function SettingsPage() {
   const [data, setData] = useState<SettingsData | null>(null);
   const [phone, setPhone] = useState("");
@@ -48,6 +58,13 @@ export default function SettingsPage() {
   const [simulateBody, setSimulateBody] = useState("STOP");
   const [simulateClosed, setSimulateClosed] = useState(false);
   const [smsResult, setSmsResult] = useState<string | null>(null);
+  const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
+  const [blockDate, setBlockDate] = useState("");
+  const [blockStart, setBlockStart] = useState("10:00");
+  const [blockEnd, setBlockEnd] = useState("11:00");
+  const [blockTitle, setBlockTitle] = useState("Blocked");
+  const [calendarMsg, setCalendarMsg] = useState<string | null>(null);
+  const [errorTestMsg, setErrorTestMsg] = useState<string | null>(null);
   const [allowedOriginsText, setAllowedOriginsText] = useState("");
   const [widget, setWidget] = useState<SettingsData["widget"]>();
   const [loading, setLoading] = useState(true);
@@ -75,6 +92,13 @@ export default function SettingsPage() {
       setHandoffEmail(json.data.agent?.humanHandoffEmail ?? "");
       setWidget(json.data.widget);
       setAllowedOriginsText((json.data.widget?.allowedOrigins ?? []).join("\n"));
+      try {
+        const calRes = await fetch("/api/dashboard/calendar");
+        const calJson = await calRes.json();
+        if (calRes.ok) setCalendar(calJson.data);
+      } catch {
+        /* calendar is optional on this page */
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
     } finally {
@@ -85,6 +109,19 @@ export default function SettingsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("calendar");
+    if (!q) return;
+    const messages: Record<string, string> = {
+      connected: "Google Calendar connected.",
+      denied: "Google access was denied.",
+      failed: "Google connection failed. Try again.",
+      invalid: "Google connection expired. Try again.",
+      oauth_missing: "Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET first.",
+    };
+    if (messages[q]) setCalendarMsg(messages[q]);
+  }, []);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -282,6 +319,140 @@ export default function SettingsPage() {
       </form>
 
       <section className="mt-8 space-y-4 rounded-xl border border-gray-200 bg-white p-5">
+        <h2 className="font-semibold text-gray-900">Google Calendar</h2>
+        <p className="text-sm text-gray-500">
+          New bookings are pushed to the connected calendar. Blocked times here (or busy
+          events in Google) are not offered in chat.
+        </p>
+        {calendar && (
+          <>
+            <p className="text-sm text-gray-700">
+              {calendar.connected
+                ? `Connected${calendar.email ? ` as ${calendar.email}` : ""}.`
+                : "Not connected. Bookings still log a calendar preview locally."}
+            </p>
+            {calendar.lastError && (
+              <p className="text-xs text-red-600">{calendar.lastError}</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {calendar.oauthConfigured ? (
+                calendar.connected ? (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await fetch("/api/integrations/google/disconnect", { method: "POST" });
+                      await load();
+                    }}
+                    className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700"
+                  >
+                    Disconnect
+                  </button>
+                ) : (
+                  <a
+                    href="/api/integrations/google/start"
+                    className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white"
+                  >
+                    Connect Google Calendar
+                  </a>
+                )
+              ) : (
+                <p className="text-xs text-stone-500">
+                  Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to connect a real calendar.
+                </p>
+              )}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-4">
+              <label className="text-xs font-medium text-gray-500">
+                Date
+                <input
+                  type="date"
+                  value={blockDate}
+                  onChange={(e) => setBlockDate(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="text-xs font-medium text-gray-500">
+                Start
+                <input
+                  type="time"
+                  value={blockStart}
+                  onChange={(e) => setBlockStart(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="text-xs font-medium text-gray-500">
+                End
+                <input
+                  type="time"
+                  value={blockEnd}
+                  onChange={(e) => setBlockEnd(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="text-xs font-medium text-gray-500">
+                Label
+                <input
+                  value={blockTitle}
+                  onChange={(e) => setBlockTitle(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </label>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                setCalendarMsg(null);
+                const res = await fetch("/api/dashboard/calendar", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    date: blockDate,
+                    startTime: blockStart,
+                    endTime: blockEnd,
+                    title: blockTitle,
+                  }),
+                });
+                const json = await res.json();
+                if (!res.ok) {
+                  setCalendarMsg(json.error?.message ?? "Could not add blocked time.");
+                  return;
+                }
+                await load();
+              }}
+              className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700"
+            >
+              Add blocked time
+            </button>
+            {calendarMsg && <p className="text-sm text-stone-700">{calendarMsg}</p>}
+            {calendar.busyBlocks.length > 0 && (
+              <ul className="space-y-2 text-sm text-gray-700">
+                {calendar.busyBlocks.map((b) => (
+                  <li key={b.id} className="flex items-center justify-between gap-2">
+                    <span>
+                      {b.title} · {new Date(b.start).toLocaleString()} –{" "}
+                      {new Date(b.end).toLocaleTimeString()}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await fetch(`/api/dashboard/calendar/blocks/${b.id}`, {
+                          method: "DELETE",
+                        });
+                        await load();
+                      }}
+                      className="text-xs text-red-700 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </section>
+
+      <section className="mt-8 space-y-4 rounded-xl border border-gray-200 bg-white p-5">
         <h2 className="font-semibold text-gray-900">Test SMS locally</h2>
         <p className="text-sm text-gray-500">
           Without Twilio, these return a preview. With Twilio, Test send actually texts the number.
@@ -434,6 +605,27 @@ export default function SettingsPage() {
             Team
           </Link>
         </div>
+      </section>
+
+      <section className="mt-8 space-y-3 rounded-xl border border-gray-200 bg-white p-5">
+        <h2 className="font-semibold text-gray-900">Reliability</h2>
+        <p className="text-sm text-gray-500">
+          Neon keeps point-in-time database backups. Export this week&apos;s appointments from
+          the Appointments page anytime. After a restore, reconnect Google Calendar.
+        </p>
+        <button
+          type="button"
+          onClick={async () => {
+            setErrorTestMsg(null);
+            const res = await fetch("/api/dashboard/errors/test", { method: "POST" });
+            const json = await res.json();
+            setErrorTestMsg(json.data?.preview ?? json.error?.message ?? "Done");
+          }}
+          className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700"
+        >
+          Send test error
+        </button>
+        {errorTestMsg && <p className="text-sm text-stone-600">{errorTestMsg}</p>}
       </section>
 
       <p className="mt-6 text-sm text-stone-500">

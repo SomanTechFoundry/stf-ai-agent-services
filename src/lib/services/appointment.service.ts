@@ -13,6 +13,7 @@
 
 import { prisma } from "@/lib/db/prisma";
 import { businessHoursService } from "./business-hours.service";
+import { calendarSyncService, isBlockedByCalendar } from "./calendar-sync.service";
 import {
   localToUtc,
   utcToLocal,
@@ -169,11 +170,13 @@ export class AppointmentService {
         businessId,
         staffId: { in: staffIds },
         status: { notIn: ["CANCELLED", "NO_SHOW"] },
-        startTime: { gte: dayStartUtc },
-        endTime:   { lte: dayEndUtc },
+        startTime: { lt: dayEndUtc },
+        endTime:   { gt: dayStartUtc },
       },
       select: { staffId: true, startTime: true, endTime: true },
     });
+
+    const calendarBusy = await calendarSyncService.listBusy(businessId, dayStartUtc, dayEndUtc);
 
     // Build per-staff appointment lists for O(n) conflict detection
     const bookedByStaff = new Map<string, Array<{ start: Date; end: Date }>>();
@@ -193,6 +196,8 @@ export class AppointmentService {
 
       const slotStart = localToUtc(date, slotTime, timezone);
       const slotEnd   = new Date(slotStart.getTime() + service.durationMinutes * 60 * 1000);
+
+      if (isBlockedByCalendar(slotStart, slotEnd, calendarBusy)) continue;
 
       for (const ss of staffServices) {
         const booked = bookedByStaff.get(ss.staffId) ?? [];
@@ -303,6 +308,8 @@ export class AppointmentService {
       );
     }
 
+    await calendarSyncService.assertFree(businessId, startTime, endTime);
+
     // Conflict check (serialised using Prisma transaction)
     const appointment = await prisma.$transaction(async (tx) => {
       if (resolvedStaffId) {
@@ -316,7 +323,7 @@ export class AppointmentService {
         });
         if (conflict) {
           throw new AppError(
-            ErrorCode.VALIDATION_ERROR,
+            ErrorCode.APPOINTMENT_CONFLICT,
             "That time slot is no longer available. Please choose another time.",
             409
           );
@@ -350,6 +357,7 @@ export class AppointmentService {
       startTime: startTime.toISOString(),
     });
 
+    void calendarSyncService.syncAppointment(businessId, appointment.id, "upsert");
     return appointment;
   }
 
@@ -462,6 +470,7 @@ export class AppointmentService {
     });
 
     logger.info("Appointment cancelled", { businessId, appointmentId, reason, forced: Boolean(options?.force) });
+    void calendarSyncService.syncAppointment(businessId, appointmentId, "delete");
     return updated;
   }
 
@@ -528,7 +537,12 @@ export class AppointmentService {
       });
     }
 
-    return prisma.$transaction(async (tx) => {
+    await calendarSyncService.assertFree(businessId, newStartTime, newEndTime, {
+      start: appt.startTime,
+      end: appt.endTime,
+    });
+
+    const updated = await prisma.$transaction(async (tx) => {
       if (appt.staffId) {
         const conflict = await tx.appointment.findFirst({
           where: {
@@ -541,7 +555,7 @@ export class AppointmentService {
         });
         if (conflict) {
           throw new AppError(
-            ErrorCode.VALIDATION_ERROR,
+            ErrorCode.APPOINTMENT_CONFLICT,
             "That time slot is not available. Please choose another time.",
             409
           );
@@ -553,6 +567,9 @@ export class AppointmentService {
         data: { startTime: newStartTime, endTime: newEndTime, status: "RESCHEDULED" },
       });
     });
+
+    void calendarSyncService.syncAppointment(businessId, appointmentId, "upsert");
+    return updated;
   }
 
   // Helper: get a local display string for an appointment's start time

@@ -25,10 +25,24 @@ jest.mock("@/lib/services/business-hours.service", () => ({
   businessHoursService: { getHoursForDay: jest.fn() },
 }));
 
+jest.mock("@/lib/services/calendar-sync.service", () => ({
+  calendarSyncService: {
+    listBusy: jest.fn().mockResolvedValue([]),
+    assertFree: jest.fn().mockResolvedValue(undefined),
+    syncAppointment: jest.fn(),
+  },
+  isBlockedByCalendar: (
+    start: Date,
+    end: Date,
+    busy: Array<{ start: Date; end: Date }>
+  ) => busy.some((b) => start < b.end && end > b.start),
+}));
+
 import { AppointmentService } from "@/lib/services/appointment.service";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { prisma } from "@/lib/db/prisma";
 import { businessHoursService } from "@/lib/services/business-hours.service";
+import { calendarSyncService } from "@/lib/services/calendar-sync.service";
 
 // Typed accessors for the mock
 const mp = prisma as unknown as {
@@ -44,6 +58,11 @@ const mp = prisma as unknown as {
   $transaction: jest.Mock;
 };
 const mockHours = businessHoursService.getHoursForDay as jest.Mock;
+const mockCalendar = calendarSyncService as unknown as {
+  listBusy: jest.Mock;
+  assertFree: jest.Mock;
+  syncAppointment: jest.Mock;
+};
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -69,6 +88,7 @@ describe("AppointmentService.checkAvailability", () => {
     mp.staffService.findMany.mockResolvedValue(STAFF_SVCS);
     mp.appointment.findMany.mockResolvedValue([]);
     mockHours.mockResolvedValue(OPEN_HOURS);
+    mockCalendar.listBusy.mockResolvedValue([]);
   });
 
   it("returns isOpen=false for a past date", async () => {
@@ -94,6 +114,20 @@ describe("AppointmentService.checkAvailability", () => {
     const r = await svc.checkAvailability("biz-001", "svc-001", futureDate(7));
     expect(r.isOpen).toBe(true);
     expect(r.slots.length).toBeGreaterThan(0);
+  });
+
+  it("excludes slots blocked on the salon calendar", async () => {
+    const date = futureDate(7);
+    mockCalendar.listBusy.mockResolvedValue([
+      {
+        start: new Date(`${date}T10:00:00.000Z`),
+        end: new Date(`${date}T11:00:00.000Z`),
+      },
+    ]);
+    const r = await svc.checkAvailability("biz-001", "svc-001", date);
+    const times = r.slots.map((s) => s.time);
+    expect(times).not.toContain("10:00");
+    expect(times).toContain("09:00");
   });
 
   it("excludes conflicting slots", async () => {

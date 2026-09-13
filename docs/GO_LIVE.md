@@ -212,7 +212,8 @@ Ship feedback in this order so customers feel progress:
 5. **Dashboard CRUD** — edit services/staff/FAQs in UI  
 6. **Custom domain** — `receptionist.yourbrand.com` in Vercel  
 7. **Sentry** — catch production errors early  
-8. **Second tenant** — prove multi-business onboarding  
+8. **Backups** — Neon PITR plus owner CSV export (see [BACKUP.md](./BACKUP.md))  
+9. **Second tenant** — prove multi-business onboarding  
 
 Tell me which item you want next after smoke testing; I’ll implement it.
 

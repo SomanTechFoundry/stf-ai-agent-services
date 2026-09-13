@@ -1,24 +1,48 @@
 /**
- * Error reporting hook.
- *
- * @sentry/nextjs is not a required dependency — this module never imports it,
- * so Next.js/Turbopack will not warn about a missing package.
- *
- * When you add Sentry later, wire it here with a real import.
+ * Error reporting. Uses @sentry/nextjs when SENTRY_DSN is set.
  */
 
 import { logger } from "@/lib/logger";
 
-export function initSentry(): void {
-  if (process.env.SENTRY_DSN) {
-    logger.debug("SENTRY_DSN is set but Sentry SDK is not wired — errors stay in logs only");
+let initialized = false;
+
+export async function initSentry(): Promise<void> {
+  const dsn = process.env.SENTRY_DSN;
+  if (!dsn || initialized) {
+    if (!dsn) {
+      logger.debug("Sentry off — SENTRY_DSN is not set");
+    }
+    return;
+  }
+  try {
+    const Sentry = await import("@sentry/nextjs");
+    Sentry.init({
+      dsn,
+      environment: process.env.NODE_ENV,
+      tracesSampleRate: 0,
+      sendDefaultPii: false,
+    });
+    initialized = true;
+    logger.info("Sentry initialized");
+  } catch (err) {
+    logger.warn("Sentry SDK failed to initialize", {
+      event: "sentry_init_failed",
+      errorName: err instanceof Error ? err.name : "Unknown",
+    });
   }
 }
 
 export function captureException(err: unknown, context?: Record<string, unknown>): void {
-  logger.debug("Exception captured (logs only)", {
+  logger.error("Exception captured", err, {
     event: "exception_captured",
-    errorName: err instanceof Error ? err.name : "Unknown",
     ...context,
   });
+  if (!process.env.SENTRY_DSN) return;
+  void import("@sentry/nextjs")
+    .then((Sentry) => {
+      Sentry.captureException(err, { extra: context });
+    })
+    .catch(() => {
+      /* package missing — logs already recorded */
+    });
 }

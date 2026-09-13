@@ -79,14 +79,7 @@ Returns `503` if database is unreachable.
 
 ## Monitoring
 
-Optional Sentry — install and set `SENTRY_DSN`:
-
-```bash
-npm install @sentry/nextjs
-npx @sentry/wizard@latest -i nextjs
-```
-
-The app initializes Sentry automatically via `src/instrumentation.ts` when the DSN is set.
+Set `SENTRY_DSN` (and optionally `NEXT_PUBLIC_SENTRY_DSN`). The app initializes Sentry from `src/instrumentation.ts` when the DSN is set. Owners can send a test event from Settings → Reliability.
 
 ## Post-Deploy Smoke Test
 
@@ -101,5 +94,3 @@ Test dashboard: `https://your-domain.com/dashboard/login`
 ## Known Limitations
 
 - Rate limiting is in-memory (single instance). For multi-region production, use Redis/Upstash.
-- Google Calendar sync is not yet implemented.
-- Per-business Twilio numbers use global config until Integration model is wired.

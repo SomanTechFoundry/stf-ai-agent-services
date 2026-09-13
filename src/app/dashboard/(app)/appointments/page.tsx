@@ -166,6 +166,12 @@ export default function AppointmentsPage() {
         >
           Refresh
         </button>
+        <a
+          href={`/api/dashboard/appointments/export?dateFrom=${dateFrom}&dateTo=${dateTo}`}
+          className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+        >
+          Export CSV
+        </a>
       </div>
 
       {error && (
