@@ -40,6 +40,7 @@ async function loadAppointment(appointmentId: string) {
           timezone: true,
           cancellationPolicyHours: true,
           status: true,
+          logoUrl: true,
         },
       },
       service: { select: { name: true, durationMinutes: true } },
@@ -74,6 +75,14 @@ export default async function BookingConfirmationPage({ params }: Props) {
   return (
     <main className="min-h-screen bg-[#f4f2ee] px-4 py-12">
       <div className="mx-auto max-w-lg rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+        {appt.business.logoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={appt.business.logoUrl}
+            alt=""
+            className="mb-3 h-10 max-w-[140px] object-contain"
+          />
+        )}
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-teal-800">
           {appt.business.name}
         </p>
@@ -129,6 +138,16 @@ export default async function BookingConfirmationPage({ params }: Props) {
           Please give at least {appt.business.cancellationPolicyHours} hours notice to cancel
           or reschedule.
         </p>
+
+        {appt.status !== "CANCELLED" && (
+          <a
+            href={`/api/booking/${appt.id}/ics`}
+            download={`${appt.business.slug}-appointment.ics`}
+            className="mt-5 inline-flex rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          >
+            Add to calendar
+          </a>
+        )}
 
         {appt.business.phone && (
           <p className="mt-4 text-sm text-stone-500">

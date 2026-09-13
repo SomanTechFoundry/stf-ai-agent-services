@@ -1,19 +1,27 @@
 /**
- * GET /api/dashboard/conversations
+ * GET /api/dashboard/conversations?status=ESCALATED
  */
 
+import { type NextRequest } from "next/server";
+import { type ConversationStatus } from "@prisma/client";
 import { requireDashboardSession } from "@/lib/auth/dashboard-auth";
 import { conversationService } from "@/lib/services/conversation.service";
 import { successResponse, errorResponse } from "@/lib/utils/api-response";
 import { generateRequestId } from "@/lib/utils/id";
 import { logger } from "@/lib/logger";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const requestId = generateRequestId();
   try {
     const session = await requireDashboardSession();
+    const rawStatus = request.nextUrl.searchParams.get("status");
+    const status =
+      rawStatus === "ACTIVE" || rawStatus === "RESOLVED" || rawStatus === "ESCALATED"
+        ? (rawStatus as ConversationStatus)
+        : undefined;
     const result = await conversationService.listForDashboard(session.businessId, {
       limit: 50,
+      status,
     });
 
     const items = result.conversations.map((c) => ({

@@ -17,6 +17,8 @@
 import { prisma } from "@/lib/db/prisma";
 import { logger } from "@/lib/logger";
 import { utcToLocal } from "@/lib/utils/date-time";
+import { bookingConfirmationUrl } from "@/lib/utils/app-url";
+import { buildAppointmentIcs } from "@/lib/utils/ics";
 
 // ============================================================
 // Lazy SDK initialisation — avoids import errors when keys are missing
@@ -68,6 +70,10 @@ export class NotificationService {
               state: true,
               timezone: true,
               cancellationPolicyHours: true,
+              email: true,
+              logoUrl: true,
+              smsFromNumber: true,
+              smsFromName: true,
             },
           },
         },
@@ -118,20 +124,23 @@ export class NotificationService {
       return;
     }
 
-    const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+    const fromNumber = resolveSmsFromNumber(appt.business);
     const client = getTwilioClient();
     if (!client || !fromNumber) {
       logger.info("SMS skipped — Twilio not configured", ctx);
       return;
     }
 
-    const body = buildSMSBody({
-      businessName: appt.business.name,
-      serviceName:  appt.service.name,
-      displayDate,
-      displayTime,
-      businessPhone: appt.business.phone ?? "",
-    });
+    const body = brandSms(
+      appt.business,
+      buildSMSBody({
+        businessName: appt.business.name,
+        serviceName:  appt.service.name,
+        displayDate,
+        displayTime,
+        businessPhone: appt.business.phone ?? "",
+      })
+    );
 
     try {
       const msg = await client.messages.create({
@@ -165,10 +174,6 @@ export class NotificationService {
 
     const fromEmail = process.env.RESEND_FROM_EMAIL;
     const resend    = getResendClient();
-    if (!resend || !fromEmail) {
-      logger.info("Email skipped — Resend not configured", ctx);
-      return;
-    }
 
     const html = buildEmailHTML({
       customerName:  appt.customer.name ?? "there",
@@ -184,14 +189,44 @@ export class NotificationService {
         .filter(Boolean).join(", "),
       businessPhone: appt.business.phone ?? "",
       cancellationHours: appt.business.cancellationPolicyHours,
+      logoUrl: appt.business.logoUrl ?? null,
+      confirmUrl: bookingConfirmationUrl(appt.id),
     });
 
+    const location = [appt.business.address, appt.business.city, appt.business.state]
+      .filter(Boolean)
+      .join(", ");
+    const ics = buildAppointmentIcs({
+      appointmentId: appt.id,
+      title: `${appt.service.name} at ${appt.business.name}`,
+      description: `Your ${appt.service.name} appointment.`,
+      location,
+      start: appt.startTime,
+      end: appt.endTime ?? new Date(appt.startTime.getTime() + (appt.service.durationMinutes ?? 60) * 60_000),
+      organizerEmail: appt.business.email,
+    });
+
+    if (!resend || !fromEmail) {
+      logger.info("Email preview (Resend not configured)", {
+        ...ctx,
+        fromName: appt.business.smsFromName || appt.business.name,
+        subject: `Appointment confirmed — ${appt.service.name} at ${appt.business.name}`,
+        icsPreview: ics.slice(0, 240),
+        htmlLength: html.length,
+      });
+      return;
+    }
+
     try {
+      const fromHeader = formatFromHeader(fromEmail, appt.business.smsFromName || appt.business.name);
       const result = await resend.emails.send({
-        from:    fromEmail,
+        from:    fromHeader,
         to:      [appt.customer.email],
         subject: `Appointment confirmed — ${appt.service.name} at ${appt.business.name}`,
         html,
+        attachments: [
+          { filename: "appointment.ics", content: Buffer.from(ics).toString("base64") },
+        ],
       });
       logger.info("Email confirmation sent", { ...ctx, emailId: result.data?.id });
     } catch (err) {
@@ -333,39 +368,69 @@ export class NotificationService {
     try {
       const config = await prisma.aIConfiguration.findUnique({
         where: { businessId: input.businessId },
-        include: { business: { select: { name: true } } },
+        include: {
+          business: {
+            select: {
+              name: true,
+              phone: true,
+              email: true,
+              smsFromNumber: true,
+              smsFromName: true,
+            },
+          },
+        },
       });
-      if (!config) return;
+      const business = config?.business ?? (await prisma.business.findUnique({
+        where: { id: input.businessId },
+        select: { name: true, phone: true, email: true, smsFromNumber: true, smsFromName: true },
+      }));
+      if (!business) return;
 
-      const businessName = config.business?.name ?? "Business";
+      const owner = await prisma.user.findFirst({
+        where: { businessId: input.businessId, role: "BUSINESS_OWNER", isActive: true },
+        select: { email: true },
+      });
+
+      const businessName = business.name;
+      const toPhone = config?.humanHandoffPhone || business.phone;
+      const toEmail = config?.humanHandoffEmail || business.email || owner?.email;
+      const dashboardUrl = `${(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").replace(/\/$/, "")}/dashboard/conversations`;
 
       const body = [
-        `[${input.urgency.toUpperCase()}] Escalation at ${businessName}`,
+        `[${input.urgency.toUpperCase()}] A customer needs you at ${businessName}`,
         `Reason: ${input.reason}`,
         input.summary ? `Summary: ${input.summary}` : "",
         input.customerPhone ? `Customer: ${input.customerPhone}` : "",
-        `Conversation: ${input.conversationId}`,
+        `Open dashboard: ${dashboardUrl}`,
       ]
         .filter(Boolean)
         .join("\n");
 
-      const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+      logger.info("Escalation alert prepared", {
+        businessId: input.businessId,
+        conversationId: input.conversationId,
+        toPhone: toPhone ? "[set]" : null,
+        toEmail: toEmail ? "[set]" : null,
+        preview: body,
+      });
+
+      const fromNumber = resolveSmsFromNumber(business);
       const client = getTwilioClient();
-      if (client && fromNumber && config.humanHandoffPhone) {
+      if (client && fromNumber && toPhone) {
         await client.messages.create({
-          body,
+          body: brandSms(business, body),
           from: fromNumber,
-          to: config.humanHandoffPhone,
+          to: toPhone,
         });
       }
 
       const resend = getResendClient();
       const fromEmail = process.env.RESEND_FROM_EMAIL;
-      if (resend && fromEmail && config.humanHandoffEmail) {
+      if (resend && fromEmail && toEmail) {
         await resend.emails.send({
-          from: fromEmail,
-          to: [config.humanHandoffEmail],
-          subject: `[Escalation] ${businessName} — ${input.reason}`,
+          from: formatFromHeader(fromEmail, business.smsFromName || businessName),
+          to: [toEmail],
+          subject: `[Needs you] ${businessName} — ${input.reason}`,
           html: `<pre style="font-family:sans-serif;white-space:pre-wrap">${escapeHtml(body)}</pre>`,
         });
       }
@@ -377,6 +442,28 @@ export class NotificationService {
     }
   }
 
+  async sendTestSms(businessId: string, to: string): Promise<{ sent: boolean; preview: string }> {
+    const business = await prisma.business.findUnique({
+      where: { id: businessId },
+      select: { name: true, smsFromNumber: true, smsFromName: true, phone: true },
+    });
+    if (!business) {
+      return { sent: false, preview: "Business not found." };
+    }
+    const preview = brandSms(
+      business,
+      `Test message from ${business.name}. If you received this, outbound SMS is working. Reply STOP to unsubscribe.`
+    );
+    const fromNumber = resolveSmsFromNumber(business);
+    const client = getTwilioClient();
+    if (!client || !fromNumber) {
+      logger.info("Test SMS preview (Twilio not configured)", { businessId, preview });
+      return { sent: false, preview };
+    }
+    await client.messages.create({ body: preview, from: fromNumber, to });
+    return { sent: true, preview };
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async loadAppointmentContext(appointmentId: string, businessId: string): Promise<any | null> {
     const appt = await prisma.appointment.findFirst({
@@ -385,7 +472,18 @@ export class NotificationService {
         service: { select: { name: true } },
         customer: { select: { name: true, phone: true, email: true, smsOptIn: true } },
         business: {
-          select: { name: true, phone: true, timezone: true },
+          select: {
+            name: true,
+            phone: true,
+            timezone: true,
+            smsFromNumber: true,
+            smsFromName: true,
+            logoUrl: true,
+            email: true,
+            address: true,
+            city: true,
+            state: true,
+          },
         },
       },
     });
@@ -403,12 +501,12 @@ export class NotificationService {
     ctx: Record<string, string>
   ): Promise<void> {
     if (!appt.customer.smsOptIn || !appt.customer.phone) return;
-    const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+    const fromNumber = resolveSmsFromNumber(appt.business);
     const client = getTwilioClient();
     if (!client || !fromNumber) return;
     try {
       await client.messages.create({
-        body,
+        body: brandSms(appt.business, body),
         from: fromNumber,
         to: appt.customer.phone,
       });
@@ -431,7 +529,7 @@ export class NotificationService {
     if (!resend || !fromEmail) return;
     try {
       await resend.emails.send({
-        from: fromEmail,
+        from: formatFromHeader(fromEmail, appt.business.smsFromName || appt.business.name),
         to: [appt.customer.email],
         subject,
         html: `<!DOCTYPE html><html><body style="font-family:sans-serif;padding:24px">${htmlBody}</body></html>`,
@@ -479,6 +577,8 @@ interface EmailContext {
   businessAddress: string;
   businessPhone: string;
   cancellationHours: number;
+  logoUrl?: string | null;
+  confirmUrl?: string;
 }
 
 function buildEmailHTML(c: EmailContext): string {
@@ -491,9 +591,10 @@ function buildEmailHTML(c: EmailContext): string {
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f9fafb;margin:0;padding:24px">
   <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;border:1px solid #e5e7eb;overflow:hidden">
     <!-- Header -->
-    <div style="background:#7c3aed;padding:24px 28px">
+    <div style="background:#0f172a;padding:24px 28px">
+      ${c.logoUrl ? `<img src="${escapeHtml(c.logoUrl)}" alt="" width="120" style="max-height:40px;margin-bottom:12px;display:block" />` : ""}
       <h1 style="color:#fff;margin:0;font-size:20px;font-weight:700">Appointment Confirmed</h1>
-      <p style="color:#ede9fe;margin:4px 0 0;font-size:14px">${c.businessName}</p>
+      <p style="color:#cbd5e1;margin:4px 0 0;font-size:14px">${escapeHtml(c.businessName)}</p>
     </div>
 
     <!-- Body -->
@@ -517,6 +618,9 @@ function buildEmailHTML(c: EmailContext): string {
       <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;font-size:13px;color:#92400e;margin-bottom:20px">
         <strong>Cancellation policy:</strong> Please give us at least ${c.cancellationHours} hours notice if you need to cancel or reschedule.
       </div>
+
+      ${c.confirmUrl ? `<p style="margin:0 0 16px"><a href="${escapeHtml(c.confirmUrl)}" style="display:inline-block;background:#0f172a;color:#fff;text-decoration:none;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600">View booking</a></p>
+      <p style="font-size:13px;color:#6b7280;margin:0 0 20px">This email includes an <strong>appointment.ics</strong> file — open it to add the visit to your calendar.</p>` : ""}
 
       <p style="font-size:13px;color:#9ca3af;margin:0">
         We look forward to seeing you! — The ${escapeHtml(c.businessName)} team
@@ -548,6 +652,22 @@ function formatDisplayTime(time24: string): string {
   const ampm = h >= 12 ? "PM" : "AM";
   const h12  = h % 12 || 12;
   return `${h12}:${m} ${ampm}`;
+}
+
+function resolveSmsFromNumber(business?: { smsFromNumber?: string | null } | null): string | undefined {
+  return business?.smsFromNumber || process.env.TWILIO_PHONE_NUMBER || undefined;
+}
+
+function brandSms(business: { name: string; smsFromName?: string | null }, body: string): string {
+  const label = (business.smsFromName || business.name).trim();
+  if (!label) return body;
+  if (body.startsWith(`${label}:`) || body.startsWith(`[${label}]`)) return body;
+  return `[${label}]\n${body}`;
+}
+
+function formatFromHeader(fromEmail: string, name?: string | null): string {
+  const label = (name ?? "").replace(/[<>"]/g, "").trim();
+  return label ? `${label} <${fromEmail}>` : fromEmail;
 }
 
 function escapeHtml(str: string): string {

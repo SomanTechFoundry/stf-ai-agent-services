@@ -11,12 +11,17 @@ interface SettingsData {
     phone: string | null;
     timezone: string;
     cancellationPolicyHours: number;
+    smsFromNumber?: string | null;
+    smsFromName?: string | null;
+    logoUrl?: string | null;
   };
   agent: {
     agentName: string;
     welcomeMessage: string | null;
     aiProvider: string;
     aiModel: string;
+    humanHandoffPhone?: string | null;
+    humanHandoffEmail?: string | null;
   } | null;
   widget?: {
     token: string;
@@ -33,6 +38,16 @@ export default function SettingsPage() {
   const [cancellationHours, setCancellationHours] = useState(24);
   const [agentName, setAgentName] = useState("");
   const [welcomeMessage, setWelcomeMessage] = useState("");
+  const [smsFromNumber, setSmsFromNumber] = useState("");
+  const [smsFromName, setSmsFromName] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
+  const [handoffPhone, setHandoffPhone] = useState("");
+  const [handoffEmail, setHandoffEmail] = useState("");
+  const [testTo, setTestTo] = useState("");
+  const [simulateFrom, setSimulateFrom] = useState("+12145550199");
+  const [simulateBody, setSimulateBody] = useState("STOP");
+  const [simulateClosed, setSimulateClosed] = useState(false);
+  const [smsResult, setSmsResult] = useState<string | null>(null);
   const [allowedOriginsText, setAllowedOriginsText] = useState("");
   const [widget, setWidget] = useState<SettingsData["widget"]>();
   const [loading, setLoading] = useState(true);
@@ -53,6 +68,11 @@ export default function SettingsPage() {
       setCancellationHours(json.data.business.cancellationPolicyHours);
       setAgentName(json.data.agent?.agentName ?? "");
       setWelcomeMessage(json.data.agent?.welcomeMessage ?? "");
+      setSmsFromNumber(json.data.business.smsFromNumber ?? "");
+      setSmsFromName(json.data.business.smsFromName ?? "");
+      setLogoUrl(json.data.business.logoUrl ?? "");
+      setHandoffPhone(json.data.agent?.humanHandoffPhone ?? "");
+      setHandoffEmail(json.data.agent?.humanHandoffEmail ?? "");
       setWidget(json.data.widget);
       setAllowedOriginsText((json.data.widget?.allowedOrigins ?? []).join("\n"));
     } catch (e) {
@@ -84,10 +104,15 @@ export default function SettingsPage() {
               .split("\n")
               .map((s) => s.trim())
               .filter(Boolean),
+            smsFromNumber: smsFromNumber.trim() || null,
+            smsFromName: smsFromName.trim() || null,
+            logoUrl: logoUrl.trim() || null,
           },
           agent: {
             agentName,
             welcomeMessage: welcomeMessage || null,
+            humanHandoffPhone: handoffPhone.trim() || null,
+            humanHandoffEmail: handoffEmail.trim() || null,
           },
         }),
       });
@@ -188,6 +213,65 @@ export default function SettingsPage() {
           </div>
         </section>
 
+        <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-5">
+          <h2 className="font-semibold text-gray-900">Communications</h2>
+          <p className="text-sm text-gray-500">
+            Per-business SMS branding and who gets “needs you” alerts.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="text-xs font-medium text-gray-500">
+              SMS from-number (E.164)
+              <input
+                value={smsFromNumber}
+                onChange={(e) => setSmsFromNumber(e.target.value)}
+                placeholder="+12145550100"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="text-xs font-medium text-gray-500">
+              SMS / email from-name
+              <input
+                value={smsFromName}
+                onChange={(e) => setSmsFromName(e.target.value)}
+                placeholder="Sunset Salon"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="text-xs font-medium text-gray-500 sm:col-span-2">
+              Logo URL (used in customer emails)
+              <input
+                value={logoUrl}
+                onChange={(e) => setLogoUrl(e.target.value)}
+                placeholder="https://…"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="text-xs font-medium text-gray-500">
+              Alert phone (owner SMS)
+              <input
+                value={handoffPhone}
+                onChange={(e) => setHandoffPhone(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="text-xs font-medium text-gray-500">
+              Alert email (owner email)
+              <input
+                type="email"
+                value={handoffEmail}
+                onChange={(e) => setHandoffEmail(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              />
+            </label>
+          </div>
+          <ul className="list-disc space-y-1 pl-5 text-xs text-stone-500">
+            <li>Upgrade Twilio off trial so custom SMS bodies are delivered.</li>
+            <li>Point the number’s messaging webhook to <code>/api/webhooks/twilio/sms</code>.</li>
+            <li>Register 10DLC / A2P for US SMS before going live.</li>
+            <li>Verify the Resend from-domain for branded email.</li>
+          </ul>
+        </section>
+
         <button
           type="submit"
           disabled={saving}
@@ -196,6 +280,91 @@ export default function SettingsPage() {
           {saving ? "Saving…" : "Save changes"}
         </button>
       </form>
+
+      <section className="mt-8 space-y-4 rounded-xl border border-gray-200 bg-white p-5">
+        <h2 className="font-semibold text-gray-900">Test SMS locally</h2>
+        <p className="text-sm text-gray-500">
+          Without Twilio, these return a preview. With Twilio, Test send actually texts the number.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="text-xs font-medium text-gray-500">
+            Send test to
+            <input
+              value={testTo}
+              onChange={(e) => setTestTo(e.target.value)}
+              placeholder="+1…"
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            />
+          </label>
+          <div className="flex items-end">
+            <button
+              type="button"
+              onClick={async () => {
+                setSmsResult(null);
+                const res = await fetch("/api/dashboard/sms/test", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ to: testTo }),
+                });
+                const json = await res.json();
+                setSmsResult(json.data?.preview ?? json.error?.message ?? "Done");
+              }}
+              className="rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700"
+            >
+              Send test SMS
+            </button>
+          </div>
+          <label className="text-xs font-medium text-gray-500">
+            Simulate inbound from
+            <input
+              value={simulateFrom}
+              onChange={(e) => setSimulateFrom(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="text-xs font-medium text-gray-500">
+            Message
+            <input
+              value={simulateBody}
+              onChange={(e) => setSimulateBody(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+            />
+          </label>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-gray-600">
+          <input
+            type="checkbox"
+            checked={simulateClosed}
+            onChange={(e) => setSimulateClosed(e.target.checked)}
+          />
+          Pretend we&apos;re closed (after-hours reply)
+        </label>
+        <button
+          type="button"
+          onClick={async () => {
+            setSmsResult(null);
+            const res = await fetch("/api/dashboard/sms/simulate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                from: simulateFrom,
+                body: simulateBody,
+                afterHours: simulateClosed,
+              }),
+            });
+            const json = await res.json();
+            setSmsResult(json.data?.reply ?? json.error?.message ?? "Done");
+          }}
+          className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white"
+        >
+          Simulate inbound SMS
+        </button>
+        {smsResult && (
+          <pre className="whitespace-pre-wrap rounded-lg bg-stone-50 px-3 py-2 text-xs text-stone-700">
+            {smsResult}
+          </pre>
+        )}
+      </section>
 
       {widget && (
         <section className="mt-8 space-y-4 rounded-xl border border-gray-200 bg-white p-5">

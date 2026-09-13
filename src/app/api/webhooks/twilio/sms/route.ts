@@ -1,18 +1,16 @@
 /**
  * POST /api/webhooks/twilio/sms
  *
- * Receives inbound SMS from Twilio, runs the AI agent, and replies via TwiML.
- * Configure in Twilio Console → Phone Number → Messaging webhook URL:
- *   https://your-domain.com/api/webhooks/twilio/sms
+ * Receives inbound SMS from Twilio, handles STOP/START/HELP,
+ * then runs the AI agent and replies via TwiML.
  */
 
 import { type NextRequest } from "next/server";
-import { runAgent } from "@/lib/agent";
-import { prisma } from "@/lib/db/prisma";
 import { logger } from "@/lib/logger";
 import { generateRequestId } from "@/lib/utils/id";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { env } from "@/lib/config/env";
+import { handleInboundSms } from "@/lib/services/inbound-sms.service";
 
 function escapeXml(text: string): string {
   return text
@@ -47,20 +45,6 @@ async function validateTwilioSignature(
   }
 }
 
-async function resolveBusiness(toNumber: string) {
-  const byPhone = await prisma.business.findFirst({
-    where: { phone: toNumber, status: { in: ["ACTIVE", "TRIAL"] } },
-    select: { id: true },
-  });
-  if (byPhone) return byPhone;
-
-  const slug = process.env.TWILIO_BUSINESS_SLUG ?? "sunset-salon";
-  return prisma.business.findFirst({
-    where: { slug, status: { in: ["ACTIVE", "TRIAL"] } },
-    select: { id: true },
-  });
-}
-
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId();
 
@@ -91,36 +75,17 @@ export async function POST(request: NextRequest) {
 
     checkRateLimit(`sms:${from}`, env().rateLimit.agentRequestsPerMinute);
 
-    const business = await resolveBusiness(to);
-    if (!business) {
-      logger.error("Twilio webhook: no business for number", { requestId, to });
-      return twiml("This number is not configured. Please contact the business directly.");
-    }
-
-    logger.event("twilio_sms_inbound", "Inbound SMS received", {
-      requestId,
-      businessId: business.id,
-      from,
-      bodyLength: body.length,
-    });
-
-    const result = await runAgent({
-      businessId: business.id,
-      channel: "SMS",
-      channelIdentifier: from,
-      customerMessage: body,
-    });
+    const result = await handleInboundSms({ from, to, body });
 
     logger.event("twilio_sms_replied", "Inbound SMS handled", {
       requestId,
-      businessId: business.id,
-      conversationId: result.conversationId,
-      toolsUsed: result.toolsUsed,
-      durationMs: result.durationMs,
+      from,
+      command: result.command,
+      afterHours: result.afterHours,
       outcome: "success",
     });
 
-    return twiml(result.response || "Thanks for your message!");
+    return twiml(result.reply);
   } catch (err) {
     logger.error("Twilio webhook error", err, {
       requestId,

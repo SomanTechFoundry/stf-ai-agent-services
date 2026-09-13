@@ -132,6 +132,11 @@ model Business {
   chatWidgetToken    String?   @unique
   allowedChatOrigins String[]  @default([])
 
+  // Communications (per-business SMS / branding)
+  smsFromNumber String?   // E.164 Twilio number for this tenant
+  smsFromName   String?   // Shown as SMS prefix and email from-name
+  logoUrl       String?
+
   // Feature flags per business
   featuresEnabled Json    @default("{}")   // { "sms": true, "voiceCall": false }
 

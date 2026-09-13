@@ -24,6 +24,9 @@ const patchSettingsSchema = z.object({
       bookingLeadTimeMinutes: z.number().int().min(0).optional(),
       bookingMaxDaysAhead: z.number().int().min(1).optional(),
       allowedChatOrigins: z.array(z.string().url()).optional(),
+      smsFromNumber: z.string().max(20).nullable().optional(),
+      smsFromName: z.string().max(40).nullable().optional(),
+      logoUrl: z.string().url().nullable().optional(),
     })
     .optional(),
   agent: z
@@ -96,6 +99,8 @@ export async function GET() {
               personality: aiConfiguration.agentPersonality,
               aiProvider: aiConfiguration.aiProvider,
               aiModel: aiConfiguration.aiModel,
+              humanHandoffPhone: aiConfiguration.humanHandoffPhone,
+              humanHandoffEmail: aiConfiguration.humanHandoffEmail,
             }
           : null,
         services: services.map((s) => ({
@@ -120,14 +125,18 @@ export async function PATCH(request: NextRequest) {
     const input = parseBody(patchSettingsSchema, body);
 
     if (input.business) {
-      const { allowedChatOrigins, ...businessFields } = input.business;
+      const { allowedChatOrigins, smsFromNumber, smsFromName, logoUrl, ...businessFields } =
+        input.business;
       await businessService.update(session.businessId, businessFields);
-      if (allowedChatOrigins !== undefined) {
-        await prisma.business.update({
-          where: { id: session.businessId },
-          data: { allowedChatOrigins },
-        });
-      }
+      await prisma.business.update({
+        where: { id: session.businessId },
+        data: {
+          ...(allowedChatOrigins !== undefined && { allowedChatOrigins }),
+          ...(smsFromNumber !== undefined && { smsFromNumber }),
+          ...(smsFromName !== undefined && { smsFromName }),
+          ...(logoUrl !== undefined && { logoUrl }),
+        },
+      });
     }
 
     if (input.regenerateWidgetToken) {

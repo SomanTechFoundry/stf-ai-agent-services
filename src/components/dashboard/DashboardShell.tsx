@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { LogoutButton } from "./LogoutButton";
 import { isOwnerRole } from "@/lib/auth/roles";
@@ -35,6 +36,28 @@ export function DashboardShell({
   const pathname = usePathname();
   const owner = isOwnerRole(userRole);
   const items = NAV.filter((item) => !item.ownerOnly || owner);
+  const [escalatedCount, setEscalatedCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadBadge() {
+      try {
+        const res = await fetch("/api/dashboard/escalations");
+        const json = await res.json();
+        if (!cancelled && res.ok) setEscalatedCount(json.data.count ?? 0);
+      } catch {
+        /* ignore */
+      }
+    }
+    void loadBadge();
+    const timer = setInterval(() => void loadBadge(), 30_000);
+    window.addEventListener("stf:escalations-changed", loadBadge);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      window.removeEventListener("stf:escalations-changed", loadBadge);
+    };
+  }, [pathname]);
 
   return (
     <div className="flex min-h-screen bg-[#f4f2ee]">
@@ -62,7 +85,14 @@ export function DashboardShell({
                     : "text-stone-600 hover:bg-stone-50 hover:text-slate-900"
                 }`}
               >
-                {item.label}
+                <span className="flex items-center justify-between gap-2">
+                  {item.label}
+                  {item.href === "/dashboard/conversations" && escalatedCount > 0 && (
+                    <span className="rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                      {escalatedCount}
+                    </span>
+                  )}
+                </span>
               </Link>
             );
           })}

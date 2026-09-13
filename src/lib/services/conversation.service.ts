@@ -275,7 +275,7 @@ export class ConversationService {
           },
           _count: { select: { messages: true } },
         },
-        orderBy: { updatedAt: "desc" },
+        orderBy: [{ escalatedAt: "desc" }, { updatedAt: "desc" }],
         take: limit,
       }),
       prisma.conversation.count({ where }),

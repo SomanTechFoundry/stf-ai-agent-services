@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db/prisma";
 import { logger } from "@/lib/logger";
 import type { SetBusinessHoursInput, BusinessHoursEntry } from "@/lib/validation";
 import type { BusinessHours, DayOfWeek } from "@prisma/client";
+import { getDayOfWeek, utcToLocal } from "@/lib/utils/date-time";
 
 export { DayOfWeek };
 
@@ -48,12 +49,19 @@ export class BusinessHoursService {
     });
   }
 
-  /**
-   * Check if the business is open at a given date/time.
-   * The datetime must be in the business's configured timezone.
-   *
-   * Returns the hours entry for that day, or null if closed.
-   */
+  /** True if the business is open at this instant in its timezone. */
+  async isOpenAt(businessId: string, timezone: string, at = new Date()): Promise<{
+    isOpen: boolean;
+    hours: BusinessHours | null;
+  }> {
+    const local = utcToLocal(at, timezone);
+    const day = getDayOfWeek(local.date, timezone);
+    const hours = await this.getHoursForDay(businessId, day);
+    if (!hours || !hours.isOpen) return { isOpen: false, hours };
+    const open = local.time >= hours.openTime && local.time < hours.closeTime;
+    return { isOpen: open, hours };
+  }
+
   async getHoursForDay(
     businessId: string,
     dayOfWeek: DayOfWeek

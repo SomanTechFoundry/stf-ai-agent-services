@@ -23,8 +23,10 @@ interface Message {
 const STATUS_COLORS: Record<string, string> = {
   ACTIVE: "bg-green-100 text-green-800",
   RESOLVED: "bg-gray-100 text-gray-600",
-  ESCALATED: "bg-amber-100 text-amber-800",
+  ESCALATED: "bg-red-100 text-red-800",
 };
+
+type ListFilter = "all" | "needs_you";
 
 export default function ConversationsPage() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -34,12 +36,16 @@ export default function ConversationsPage() {
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<ListFilter>("all");
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [resolving, setResolving] = useState(false);
 
   const loadList = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/dashboard/conversations");
+      const qs = filter === "needs_you" ? "?status=ESCALATED" : "";
+      const res = await fetch(`/api/dashboard/conversations${qs}`);
       const json = await res.json();
       if (!res.ok) {
         setError(json?.error?.message ?? "Failed to load conversations.");
@@ -51,7 +57,7 @@ export default function ConversationsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filter]);
 
   useEffect(() => {
     loadList();
@@ -66,6 +72,7 @@ export default function ConversationsPage() {
       if (!res.ok) return;
       setMessages(json.data.messages);
       setDetailCustomer(json.data.customer);
+      setSelectedStatus(json.data.status ?? null);
     } finally {
       setDetailLoading(false);
     }
@@ -78,13 +85,33 @@ export default function ConversationsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Conversations</h1>
           <p className="text-sm text-gray-500 mt-1">Chat sessions from the AI receptionist</p>
         </div>
-        <button
-          type="button"
-          onClick={loadList}
-          className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
-        >
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setFilter("all")}
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+              filter === "all" ? "bg-slate-900 text-white" : "bg-gray-100 text-gray-700"
+            }`}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter("needs_you")}
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+              filter === "needs_you" ? "bg-red-600 text-white" : "bg-red-50 text-red-800"
+            }`}
+          >
+            Needs you
+          </button>
+          <button
+            type="button"
+            onClick={loadList}
+            className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -94,7 +121,7 @@ export default function ConversationsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-[480px]">
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="border-b border-gray-100 px-4 py-3 text-sm font-medium text-gray-700">
-            Recent ({conversations.length})
+            {filter === "needs_you" ? "Needs you" : "Recent"} ({conversations.length})
           </div>
           {loading ? (
             <p className="p-4 text-sm text-gray-500">Loading…</p>
@@ -114,7 +141,7 @@ export default function ConversationsPage() {
                     onClick={() => openConversation(c.id)}
                     className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${
                       selectedId === c.id ? "bg-teal-50" : ""
-                    }`}
+                    } ${c.status === "ESCALATED" ? "border-l-2 border-red-500" : ""}`}
                   >
                     <div className="flex items-center justify-between gap-2 mb-0.5">
                       <span className="text-sm font-medium text-gray-900 truncate">
@@ -143,10 +170,38 @@ export default function ConversationsPage() {
         </div>
 
         <div className="bg-white rounded-xl border border-gray-200 flex flex-col">
-          <div className="border-b border-gray-100 px-4 py-3 text-sm font-medium text-gray-700">
-            {selectedId
-              ? detailCustomer?.name ?? "Conversation"
-              : "Select a conversation"}
+          <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-4 py-3 text-sm font-medium text-gray-700">
+            <span>
+              {selectedId
+                ? detailCustomer?.name ?? "Conversation"
+                : "Select a conversation"}
+            </span>
+            {selectedId && selectedStatus === "ESCALATED" && (
+              <button
+                type="button"
+                disabled={resolving}
+                onClick={async () => {
+                  setResolving(true);
+                  try {
+                    const res = await fetch(`/api/dashboard/conversations/${selectedId}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ action: "resolve" }),
+                    });
+                    if (res.ok) {
+                      setSelectedStatus("RESOLVED");
+                      window.dispatchEvent(new Event("stf:escalations-changed"));
+                      await loadList();
+                    }
+                  } finally {
+                    setResolving(false);
+                  }
+                }}
+                className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+              >
+                {resolving ? "Saving…" : "Mark resolved"}
+              </button>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-[520px]">
             {!selectedId ? (
