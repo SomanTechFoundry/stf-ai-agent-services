@@ -35,6 +35,7 @@ import { logger } from "@/lib/logger";
 import { toAppError } from "@/lib/errors";
 import { env } from "@/lib/config/env";
 import { checkRateLimit, getClientIp } from "@/lib/security/rate-limit";
+import { requireChatSession } from "@/lib/security/chat-access";
 import type { ConversationChannel } from "@prisma/client";
 
 const chatRequestSchema = z.object({
@@ -44,6 +45,7 @@ const chatRequestSchema = z.object({
   channel:           z.enum(["WEBCHAT", "SMS", "VOICE", "EMAIL", "WHATSAPP"]).default("WEBCHAT"),
   channelIdentifier: z.string().optional(),
   stream:            z.boolean().optional(),
+  chatSession:       z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -57,7 +59,16 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => ({}));
-  const input = parseBody(chatRequestSchema, body);
+  let input;
+  try {
+    input = parseBody(chatRequestSchema, body);
+    if (input.channel === "WEBCHAT") {
+      requireChatSession(input.chatSession, input.businessId);
+    }
+    checkRateLimit(`agent-biz:${input.businessId}`, 120, 60_000);
+  } catch (err) {
+    return errorResponse(err, { requestId });
+  }
 
   const acceptsSSE = request.headers.get("accept")?.includes("text/event-stream");
   const useStream  = input.stream ?? acceptsSSE ?? false;

@@ -14,6 +14,8 @@ import { appointmentService } from "@/lib/services/appointment.service";
 import { notificationService } from "@/lib/services/notification.service";
 import { businessService } from "@/lib/services/business.service";
 import { resolveRelativeDate, utcToLocal } from "@/lib/utils/date-time";
+import { bookingConfirmationUrl } from "@/lib/utils/app-url";
+import { ValidationError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import type { AgentTool, ToolContext } from "./types";
 import { toolSuccess, toolError } from "./types";
@@ -322,6 +324,8 @@ export const createAppointmentTool: AgentTool = {
         context.businessId
       );
 
+      const confirmationUrl = bookingConfirmationUrl(appointment.id);
+
       return toolSuccess({
         appointmentId: appointment.id,
         service: service.name,
@@ -332,7 +336,8 @@ export const createAppointmentTool: AgentTool = {
         currency: service.currency,
         notes: notes ?? null,
         status: appointment.status,
-        message: "Appointment booked successfully!",
+        confirmationUrl,
+        message: `Appointment booked successfully. Give the customer this confirmation link: ${confirmationUrl}`,
       });
     } catch (err) {
       // Surface slot-conflict errors to the AI so it can ask for another time
@@ -493,6 +498,9 @@ export const cancelAppointmentTool: AgentTool = {
         message: "Appointment cancelled successfully.",
       });
     } catch (err) {
+      if (err instanceof ValidationError) {
+        return toolError(err.message);
+      }
       if (err instanceof Error && err.message.includes("Cannot cancel")) {
         return toolError(err.message);
       }

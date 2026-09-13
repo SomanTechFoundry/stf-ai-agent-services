@@ -8,6 +8,7 @@ import { z } from "zod";
 import { requireDashboardSession } from "@/lib/auth/dashboard-auth";
 import { appointmentService } from "@/lib/services/appointment.service";
 import { notificationService } from "@/lib/services/notification.service";
+import { reminderService } from "@/lib/services/reminder.service";
 import { parseBody } from "@/lib/validation";
 import { successResponse, errorResponse } from "@/lib/utils/api-response";
 import { generateRequestId } from "@/lib/utils/id";
@@ -16,7 +17,13 @@ import { logger } from "@/lib/logger";
 const patchSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("confirm") }),
   z.object({ action: z.literal("complete") }),
-  z.object({ action: z.literal("cancel"), reason: z.string().optional() }),
+  z.object({ action: z.literal("no_show") }),
+  z.object({ action: z.literal("remind") }),
+  z.object({
+    action: z.literal("cancel"),
+    reason: z.string().optional(),
+    force: z.boolean().optional(),
+  }),
   z.object({
     action: z.literal("reschedule"),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -47,11 +54,21 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       updated = await appointmentService.confirm(session.businessId, appointmentId);
     } else if (input.action === "complete") {
       updated = await appointmentService.complete(session.businessId, appointmentId);
+    } else if (input.action === "no_show") {
+      updated = await appointmentService.markNoShow(session.businessId, appointmentId);
+    } else if (input.action === "remind") {
+      const reminder = await reminderService.sendForAppointment(
+        session.businessId,
+        appointmentId,
+        { ignoreAlreadySent: true }
+      );
+      return successResponse({ reminder }, 200, { requestId });
     } else if (input.action === "cancel") {
       updated = await appointmentService.cancel(
         session.businessId,
         appointmentId,
-        input.reason
+        input.reason,
+        { force: Boolean(input.force) }
       );
       void notificationService.sendAppointmentCancellation(appointmentId, session.businessId);
     } else {

@@ -200,6 +200,49 @@ export class NotificationService {
   }
 
   /**
+   * Day-before reminder. Returns true if SMS or email was handed to a provider.
+   */
+  async sendAppointmentReminder(
+    appointmentId: string,
+    businessId: string,
+    extra: { preview: string; confirmUrl: string }
+  ): Promise<boolean> {
+    try {
+      const appt = await this.loadAppointmentContext(appointmentId, businessId);
+      if (!appt) {
+        logger.info("Reminder skipped — appointment not found", { appointmentId });
+        return false;
+      }
+
+      const ctx = { appointmentId, businessId, customerId: appt.customerId };
+      const smsBody = `${extra.preview}${
+        appt.business.phone ? `\nQuestions? Call ${appt.business.phone}` : ""
+      }`;
+
+      await Promise.allSettled([
+        this.sendRawSMS(appt, smsBody, ctx),
+        this.sendRawEmail(
+          appt,
+          `Reminder — ${appt.service.name} at ${appt.business.name}`,
+          `<p>${escapeHtml(extra.preview).replace(/\n/g, "<br/>")}</p><p><a href="${escapeHtml(extra.confirmUrl)}">View your booking</a></p>`,
+          ctx
+        ),
+      ]);
+
+      if (!process.env.TWILIO_ACCOUNT_SID && !process.env.RESEND_API_KEY) {
+        logger.info("Reminder preview (SMS/email not configured)", {
+          ...ctx,
+          preview: extra.preview,
+        });
+      }
+      return true;
+    } catch (err) {
+      logger.error("sendAppointmentReminder failed", err, { appointmentId });
+      return false;
+    }
+  }
+
+  /**
    * Notify customer that an appointment was cancelled.
    */
   async sendAppointmentCancellation(

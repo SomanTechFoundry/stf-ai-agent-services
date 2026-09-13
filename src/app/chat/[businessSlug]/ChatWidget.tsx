@@ -22,6 +22,8 @@ interface Props {
   welcomeMessage: string;
   businessPhone: string | null;
   businessLocation: string | null;
+  chatSession: string;
+  embed?: boolean;
 }
 
 // ============================================================
@@ -208,6 +210,8 @@ export function ChatWidget({
   welcomeMessage,
   businessPhone,
   businessLocation,
+  chatSession,
+  embed = false,
 }: Props) {
   const initialMessage = useMemo<Message>(
     () => ({
@@ -273,6 +277,7 @@ export function ChatWidget({
           conversationId,
           channel:        "WEBCHAT",
           stream:         true,
+          chatSession,
         }),
       });
 
@@ -377,7 +382,7 @@ export function ChatWidget({
       setIsStreaming(false);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
-  }, [input, isLoading, businessId, conversationId]);
+  }, [input, isLoading, businessId, conversationId, chatSession]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -410,6 +415,16 @@ export function ChatWidget({
           )}
         </div>
         <StatusDot />
+        {embed && (
+          <button
+            type="button"
+            aria-label="Close chat"
+            onClick={() => window.parent.postMessage({ type: "stf-close" }, "*")}
+            className="ml-1 text-stone-400 hover:text-stone-700"
+          >
+            ×
+          </button>
+        )}
       </header>
 
       {/* ── Messages ───────────────────────────────────────────── */}

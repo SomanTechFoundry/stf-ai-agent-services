@@ -11,6 +11,7 @@ import { prisma } from "@/lib/db/prisma";
 import { successResponse, errorResponse } from "@/lib/utils/api-response";
 import { generateRequestId } from "@/lib/utils/id";
 import { logger } from "@/lib/logger";
+import { bookingConfirmationUrl } from "@/lib/utils/app-url";
 
 export async function GET(request: NextRequest) {
   const requestId = generateRequestId();
@@ -48,6 +49,8 @@ export async function GET(request: NextRequest) {
         price: Number(a.price),
         currency: a.currency,
         notes: a.notes,
+        reminderSentAt: a.reminderSentAt,
+        confirmationUrl: bookingConfirmationUrl(a.id),
         customer: a.customer,
         service: a.service,
         staff: a.staff,

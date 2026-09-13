@@ -422,14 +422,34 @@ export class AppointmentService {
   async cancel(
     businessId: string,
     appointmentId: string,
-    reason?: string
+    reason?: string,
+    options?: { force?: boolean }
   ): Promise<Appointment> {
     const appt = await this.getById(businessId, appointmentId);
     if (appt.status === "CANCELLED") return appt;
-    if (appt.status === "COMPLETED") {
-      throw new ValidationError("Cannot cancel a completed appointment.", {
-        status: "Cannot cancel a completed appointment.",
+    if (appt.status === "COMPLETED" || appt.status === "NO_SHOW") {
+      throw new ValidationError(`Cannot cancel a ${appt.status.toLowerCase()} appointment.`, {
+        status: `Cannot cancel a ${appt.status.toLowerCase()} appointment.`,
       });
+    }
+
+    if (!options?.force) {
+      const business = await prisma.business.findUnique({
+        where: { id: businessId },
+        select: { cancellationPolicyHours: true },
+      });
+      const required = business?.cancellationPolicyHours ?? 24;
+      const hoursLeft = (appt.startTime.getTime() - Date.now()) / 3_600_000;
+      if (hoursLeft < required) {
+        throw new ValidationError(
+          `Cancellations need at least ${required} hours notice. This visit is in ${Math.max(0, Math.round(hoursLeft))} hour(s). Please call the salon.`,
+          {
+            policy: "too_late",
+            hoursRequired: String(required),
+            hoursRemaining: String(Math.max(0, Math.round(hoursLeft))),
+          }
+        );
+      }
     }
 
     const updated = await prisma.appointment.update({
@@ -441,7 +461,23 @@ export class AppointmentService {
       },
     });
 
-    logger.info("Appointment cancelled", { businessId, appointmentId, reason });
+    logger.info("Appointment cancelled", { businessId, appointmentId, reason, forced: Boolean(options?.force) });
+    return updated;
+  }
+
+  async markNoShow(businessId: string, appointmentId: string): Promise<Appointment> {
+    const appt = await this.getById(businessId, appointmentId);
+    if (appt.status === "NO_SHOW") return appt;
+    if (["CANCELLED", "COMPLETED"].includes(appt.status)) {
+      throw new ValidationError(`Cannot mark a ${appt.status.toLowerCase()} appointment as no-show.`, {
+        status: `Cannot mark a ${appt.status.toLowerCase()} appointment as no-show.`,
+      });
+    }
+    const updated = await prisma.appointment.update({
+      where: { id: appointmentId },
+      data: { status: "NO_SHOW" },
+    });
+    logger.info("Appointment marked no-show", { businessId, appointmentId });
     return updated;
   }
 

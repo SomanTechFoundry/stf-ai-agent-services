@@ -1,9 +1,9 @@
 /**
  * GET /api/chat/[slug]
  *
- * Public endpoint — no API key required.
- * Returns the minimal business info the chat widget needs to initialise:
- * businessId, name, agent name, and welcome message.
+ * Bootstraps the public chat / embed widget.
+ * First-party origin (this app) is always allowed.
+ * Other websites must send x-stf-widget-token.
  */
 
 import { type NextRequest } from "next/server";
@@ -11,9 +11,15 @@ import { prisma } from "@/lib/db/prisma";
 import { successResponse, errorResponse } from "@/lib/utils/api-response";
 import { NotFoundError } from "@/lib/errors";
 import { generateRequestId } from "@/lib/utils/id";
+import {
+  assertWidgetAllowed,
+  createChatSessionToken,
+  generateWidgetToken,
+  requestOrigin,
+} from "@/lib/security/chat-access";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const requestId = generateRequestId();
@@ -29,6 +35,9 @@ export async function GET(
         phone: true,
         city: true,
         state: true,
+        slug: true,
+        chatWidgetToken: true,
+        allowedChatOrigins: true,
         aiConfiguration: {
           select: {
             agentName: true,
@@ -42,9 +51,26 @@ export async function GET(
       throw new NotFoundError("Business", slug);
     }
 
+    let storedToken = business.chatWidgetToken;
+    if (!storedToken) {
+      storedToken = generateWidgetToken();
+      await prisma.business.update({
+        where: { id: business.id },
+        data: { chatWidgetToken: storedToken },
+      });
+    }
+
+    assertWidgetAllowed({
+      origin: requestOrigin(request),
+      widgetToken: request.headers.get("x-stf-widget-token") ?? request.nextUrl.searchParams.get("token"),
+      storedToken,
+      allowedOrigins: business.allowedChatOrigins,
+    });
+
     return successResponse(
       {
         businessId: business.id,
+        slug: business.slug,
         name: business.name,
         phone: business.phone,
         location: business.city && business.state ? `${business.city}, ${business.state}` : null,
@@ -52,6 +78,7 @@ export async function GET(
         welcomeMessage:
           business.aiConfiguration?.welcomeMessage ??
           `Hi! I'm the AI assistant for ${business.name}. How can I help you today?`,
+        chatSession: createChatSessionToken({ businessId: business.id }),
       },
       200,
       { requestId }

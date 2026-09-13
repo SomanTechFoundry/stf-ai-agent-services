@@ -13,6 +13,8 @@ interface Appointment {
   customer: { name: string; phone: string | null } | null;
   service: { name: string; durationMinutes: number } | null;
   staff: { name: string } | null;
+  reminderSentAt?: string | null;
+  confirmationUrl?: string;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -65,13 +67,14 @@ export default function AppointmentsPage() {
 
   async function runAction(
     id: string,
-    action: "confirm" | "cancel" | "complete" | "reschedule",
-    extra?: { date?: string; time?: string; reason?: string }
+    action: "confirm" | "cancel" | "complete" | "reschedule" | "remind" | "no_show",
+    extra?: { date?: string; time?: string; reason?: string; force?: boolean }
   ) {
     setActionId(id);
     try {
-      const body: Record<string, string> = { action };
+      const body: Record<string, string | boolean> = { action };
       if (action === "cancel" && extra?.reason) body.reason = extra.reason;
+      if (action === "cancel" && extra?.force) body.force = true;
       if (action === "reschedule") {
         if (!extra?.date || !extra?.time) return;
         body.date = extra.date;
@@ -83,10 +86,22 @@ export default function AppointmentsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      const json = await res.json();
       if (!res.ok) {
-        const json = await res.json();
+        if (action === "cancel" && json?.error?.fields?.policy === "too_late") {
+          const ok = window.confirm(
+            `${json.error.message}\n\nCancel anyway as the owner?`
+          );
+          if (ok) {
+            await runAction(id, "cancel", { ...extra, force: true });
+          }
+          return;
+        }
         alert(json?.error?.message ?? "Action failed.");
         return;
+      }
+      if (action === "remind") {
+        alert(json.data?.reminder?.preview ?? "Reminder processed.");
       }
       await load();
     } finally {
@@ -196,7 +211,18 @@ export default function AppointmentsPage() {
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
                     ${a.price.toFixed(2)} {a.currency} · {a.service?.durationMinutes ?? "?"} min
+                    {a.reminderSentAt ? " · Reminder sent" : ""}
                   </p>
+                  {a.confirmationUrl && (
+                    <a
+                      href={a.confirmationUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-1 inline-block text-xs text-teal-800 hover:underline"
+                    >
+                      Confirmation page
+                    </a>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   {a.status === "PENDING" && (
@@ -226,6 +252,22 @@ export default function AppointmentsPage() {
                         className="text-xs font-medium px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50"
                       >
                         Complete
+                      </button>
+                      <button
+                        type="button"
+                        disabled={actionId === a.id}
+                        onClick={() => runAction(a.id, "remind")}
+                        className="text-xs font-medium px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                      >
+                        Remind
+                      </button>
+                      <button
+                        type="button"
+                        disabled={actionId === a.id}
+                        onClick={() => runAction(a.id, "no_show")}
+                        className="text-xs font-medium px-3 py-1.5 rounded-lg bg-orange-50 text-orange-800 hover:bg-orange-100 disabled:opacity-50"
+                      >
+                        No-show
                       </button>
                       <button
                         type="button"

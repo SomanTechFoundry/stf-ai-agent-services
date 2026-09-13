@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Salon website — widget demo</title>
+    <style>
+      body { font-family: Georgia, serif; margin: 0; background: #fff8f1; color: #1c1917; }
+      header { padding: 28px 32px; background: #1c1917; color: #fff8f1; }
+      main { max-width: 720px; padding: 32px; }
+      h1 { margin: 0 0 8px; font-size: 32px; }
+      p { line-height: 1.6; }
+      .note { margin-top: 24px; padding: 16px; background: #fff; border: 1px solid #e7e5e4; border-radius: 12px; font-family: system-ui, sans-serif; font-size: 14px; }
+      code { background: #f5f5f4; padding: 2px 6px; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Sunset Salon</h1>
+      <p>Example customer website. The chat button is in the corner.</p>
+    </header>
+    <main>
+      <p>
+        This page pretends to be the salon’s own site. The widget script on this
+        page is the same snippet an owner copies from dashboard Settings.
+      </p>
+      <div class="note">
+        Open this file through the app:
+        <code>http://localhost:3000/widget-demo.html</code>
+        <br /><br />
+        Same-origin demo works without a token. A real third-party site needs the
+        token from Settings.
+      </div>
+    </main>
+    <script src="/widget.js" data-business="sunset-salon"></script>
+  </body>
+</html>

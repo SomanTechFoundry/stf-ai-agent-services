@@ -18,6 +18,12 @@ interface SettingsData {
     aiProvider: string;
     aiModel: string;
   } | null;
+  widget?: {
+    token: string;
+    snippet: string;
+    demoUrl: string;
+    allowedOrigins: string[];
+  };
 }
 
 export default function SettingsPage() {
@@ -27,6 +33,8 @@ export default function SettingsPage() {
   const [cancellationHours, setCancellationHours] = useState(24);
   const [agentName, setAgentName] = useState("");
   const [welcomeMessage, setWelcomeMessage] = useState("");
+  const [allowedOriginsText, setAllowedOriginsText] = useState("");
+  const [widget, setWidget] = useState<SettingsData["widget"]>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +53,8 @@ export default function SettingsPage() {
       setCancellationHours(json.data.business.cancellationPolicyHours);
       setAgentName(json.data.agent?.agentName ?? "");
       setWelcomeMessage(json.data.agent?.welcomeMessage ?? "");
+      setWidget(json.data.widget);
+      setAllowedOriginsText((json.data.widget?.allowedOrigins ?? []).join("\n"));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
     } finally {
@@ -70,6 +80,10 @@ export default function SettingsPage() {
             phone: phone || null,
             email: email || null,
             cancellationPolicyHours: cancellationHours,
+            allowedChatOrigins: allowedOriginsText
+              .split("\n")
+              .map((s) => s.trim())
+              .filter(Boolean),
           },
           agent: {
             agentName,
@@ -182,6 +196,52 @@ export default function SettingsPage() {
           {saving ? "Saving…" : "Save changes"}
         </button>
       </form>
+
+      {widget && (
+        <section className="mt-8 space-y-4 rounded-xl border border-gray-200 bg-white p-5">
+          <h2 className="font-semibold text-gray-900">Website chat widget</h2>
+          <p className="text-sm text-gray-500">
+            Paste this snippet before <code>&lt;/body&gt;</code> on the salon website.
+            Local demo:{" "}
+            <a className="text-teal-800 hover:underline" href={widget.demoUrl} target="_blank" rel="noreferrer">
+              open widget demo
+            </a>
+          </p>
+          <textarea
+            readOnly
+            value={widget.snippet}
+            rows={3}
+            className="w-full rounded-lg border border-gray-300 bg-stone-50 px-3 py-2 font-mono text-xs"
+          />
+          <p className="text-xs text-stone-500">
+            Token: <span className="font-mono">{widget.token}</span>
+          </p>
+          <label className="block text-xs font-medium text-gray-500">
+            Allowed website origins (optional, one per line, include https://)
+            <textarea
+              value={allowedOriginsText}
+              onChange={(e) => setAllowedOriginsText(e.target.value)}
+              rows={3}
+              placeholder="Leave empty to allow any site that has the token"
+              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 font-mono text-xs"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={async () => {
+              const res = await fetch("/api/dashboard/settings", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ regenerateWidgetToken: true }),
+              });
+              if (res.ok) await load();
+            }}
+            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200"
+          >
+            Regenerate widget token
+          </button>
+        </section>
+      )}
 
       <section className="mt-8 rounded-xl border border-gray-200 bg-white p-5">
         <h2 className="mb-2 font-semibold text-gray-900">Day-to-day setup</h2>

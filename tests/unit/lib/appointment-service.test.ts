@@ -180,7 +180,7 @@ describe("AppointmentService.cancel", () => {
 
   const BASE_APPT = {
     id: "appt-001", businessId: "biz-001", status: "CONFIRMED" as const,
-    startTime: new Date(), endTime: new Date(),
+    startTime: new Date(Date.now() + 48 * 3600_000), endTime: new Date(),
     service: { name: "Haircut", durationMinutes: 60 },
     customer: { name: "Jane", phone: null, email: null },
     staff: null,
@@ -189,12 +189,30 @@ describe("AppointmentService.cancel", () => {
   beforeEach(() => {
     svc = new AppointmentService();
     jest.clearAllMocks();
+    mp.business.findUnique.mockResolvedValue({ cancellationPolicyHours: 24 });
   });
 
   it("cancels a confirmed appointment", async () => {
     mp.appointment.findFirst.mockResolvedValue(BASE_APPT);
     mp.appointment.update.mockResolvedValue({ ...BASE_APPT, status: "CANCELLED" });
     const r = await svc.cancel("biz-001", "appt-001", "Customer request");
+    expect(r.status).toBe("CANCELLED");
+  });
+
+  it("blocks cancel inside the notice window", async () => {
+    mp.appointment.findFirst.mockResolvedValue({
+      ...BASE_APPT,
+      startTime: new Date(Date.now() + 2 * 3600_000),
+    });
+    await expect(svc.cancel("biz-001", "appt-001")).rejects.toThrow(/24 hours notice/i);
+    expect(mp.appointment.update).not.toHaveBeenCalled();
+  });
+
+  it("allows owner force-cancel inside the notice window", async () => {
+    const soon = { ...BASE_APPT, startTime: new Date(Date.now() + 2 * 3600_000) };
+    mp.appointment.findFirst.mockResolvedValue(soon);
+    mp.appointment.update.mockResolvedValue({ ...soon, status: "CANCELLED" });
+    const r = await svc.cancel("biz-001", "appt-001", "Owner override", { force: true });
     expect(r.status).toBe("CANCELLED");
   });
 
