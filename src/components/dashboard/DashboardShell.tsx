@@ -3,17 +3,25 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogoutButton } from "./LogoutButton";
+import { isOwnerRole } from "@/lib/auth/roles";
 
 const NAV = [
-  { href: "/dashboard/appointments", label: "Appointments" },
-  { href: "/dashboard/conversations", label: "Conversations" },
-  { href: "/dashboard/settings", label: "Settings" },
+  { href: "/dashboard/appointments", label: "Appointments", ownerOnly: false },
+  { href: "/dashboard/conversations", label: "Conversations", ownerOnly: false },
+  { href: "/dashboard/services", label: "Services", ownerOnly: true },
+  { href: "/dashboard/staff", label: "Staff", ownerOnly: true },
+  { href: "/dashboard/hours", label: "Hours", ownerOnly: true },
+  { href: "/dashboard/faqs", label: "FAQs", ownerOnly: true },
+  { href: "/dashboard/team", label: "Team", ownerOnly: true },
+  { href: "/dashboard/settings", label: "Settings", ownerOnly: true },
+  { href: "/dashboard/account", label: "Account", ownerOnly: false },
 ];
 
 interface Props {
   businessName: string;
   businessSlug?: string | null;
   userName: string;
+  userRole: string;
   children: React.ReactNode;
 }
 
@@ -21,9 +29,12 @@ export function DashboardShell({
   businessName,
   businessSlug,
   userName,
+  userRole,
   children,
 }: Props) {
   const pathname = usePathname();
+  const owner = isOwnerRole(userRole);
+  const items = NAV.filter((item) => !item.ownerOnly || owner);
 
   return (
     <div className="flex min-h-screen bg-[#f4f2ee]">
@@ -34,9 +45,12 @@ export function DashboardShell({
           </p>
           <h1 className="truncate font-semibold text-slate-900">{businessName}</h1>
           <p className="mt-0.5 truncate text-xs text-stone-500">{userName}</p>
+          <p className="mt-1 text-[11px] uppercase tracking-wide text-stone-400">
+            {owner ? "Owner" : "Front desk"}
+          </p>
         </div>
         <nav className="flex-1 space-y-0.5 p-3">
-          {NAV.map((item) => {
+          {items.map((item) => {
             const active = pathname.startsWith(item.href);
             return (
               <Link

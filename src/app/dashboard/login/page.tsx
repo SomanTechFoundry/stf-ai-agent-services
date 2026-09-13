@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -10,17 +10,6 @@ export default function DashboardLoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    fetch("/api/dashboard/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.data?.session) {
-          router.replace("/dashboard/appointments");
-        }
-      })
-      .catch(() => {});
-  }, [router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -103,6 +92,11 @@ export default function DashboardLoginPage() {
           >
             {loading ? "Signing in…" : "Sign in"}
           </button>
+          <p className="text-center text-sm">
+            <Link href="/dashboard/forgot-password" className="text-teal-800 hover:underline">
+              Forgot password?
+            </Link>
+          </p>
         </form>
       </div>
     </main>

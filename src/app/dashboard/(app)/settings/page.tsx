@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 
 interface SettingsData {
   business: {
@@ -8,23 +9,15 @@ interface SettingsData {
     slug: string;
     email: string | null;
     phone: string | null;
-    address: string | null;
-    city: string | null;
-    state: string | null;
     timezone: string;
-    bookingLeadTimeMinutes: number;
-    bookingMaxDaysAhead: number;
     cancellationPolicyHours: number;
   };
   agent: {
     agentName: string;
     welcomeMessage: string | null;
-    personality: string | null;
     aiProvider: string;
     aiModel: string;
   } | null;
-  services: Array<{ id: string; name: string; durationMinutes: number; price: number }>;
-  staff: Array<{ id: string; name: string; title: string | null }>;
 }
 
 export default function SettingsPage() {
@@ -60,7 +53,7 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   async function handleSave(e: React.FormEvent) {
@@ -98,33 +91,33 @@ export default function SettingsPage() {
   if (loading) return <p className="text-sm text-gray-500">Loading settings…</p>;
   if (!data) return <p className="text-sm text-red-600">{error ?? "No data"}</p>;
 
-  const { business, agent, services, staff } = data;
+  const { business, agent } = data;
 
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-sm text-gray-500 mt-1">Manage business profile and AI receptionist</p>
+        <p className="mt-1 text-sm text-gray-500">Business profile and AI receptionist</p>
       </div>
 
       {error && (
-        <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3 mb-4">{error}</p>
+        <p className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>
       )}
       {saved && (
-        <p className="text-sm text-green-700 bg-green-50 rounded-lg px-4 py-3 mb-4">
+        <p className="mb-4 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">
           Settings saved.
         </p>
       )}
 
       <form onSubmit={handleSave} className="space-y-6">
-        <section className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+        <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-5">
           <h2 className="font-semibold text-gray-900">Business profile</h2>
           <p className="text-sm text-gray-500">
             {business.name} · {business.slug} · {business.timezone}
           </p>
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Phone</label>
+              <label className="mb-1 block text-xs font-medium text-gray-500">Phone</label>
               <input
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -132,7 +125,7 @@ export default function SettingsPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Email</label>
+              <label className="mb-1 block text-xs font-medium text-gray-500">Email</label>
               <input
                 type="email"
                 value={email}
@@ -141,7 +134,7 @@ export default function SettingsPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">
+              <label className="mb-1 block text-xs font-medium text-gray-500">
                 Cancellation notice (hours)
               </label>
               <input
@@ -155,7 +148,7 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        <section className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+        <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-5">
           <h2 className="font-semibold text-gray-900">AI receptionist</h2>
           {agent && (
             <p className="text-xs text-gray-400">
@@ -163,7 +156,7 @@ export default function SettingsPage() {
             </p>
           )}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Agent name</label>
+            <label className="mb-1 block text-xs font-medium text-gray-500">Agent name</label>
             <input
               value={agentName}
               onChange={(e) => setAgentName(e.target.value)}
@@ -171,9 +164,7 @@ export default function SettingsPage() {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">
-              Welcome message
-            </label>
+            <label className="mb-1 block text-xs font-medium text-gray-500">Welcome message</label>
             <textarea
               value={welcomeMessage}
               onChange={(e) => setWelcomeMessage(e.target.value)}
@@ -186,39 +177,39 @@ export default function SettingsPage() {
         <button
           type="submit"
           disabled={saving}
-          className="bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white font-semibold text-sm px-5 py-2.5 rounded-xl"
+          className="rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
         >
           {saving ? "Saving…" : "Save changes"}
         </button>
       </form>
 
-      <div className="space-y-6 mt-8">
-        <section className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="font-semibold text-gray-900 mb-3">Services ({services.length})</h2>
-          <ul className="divide-y divide-gray-100">
-            {services.map((s) => (
-              <li key={s.id} className="py-2 flex justify-between text-sm">
-                <span className="text-gray-900">{s.name}</span>
-                <span className="text-gray-500">
-                  {s.durationMinutes} min · ${s.price.toFixed(2)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
+      <section className="mt-8 rounded-xl border border-gray-200 bg-white p-5">
+        <h2 className="mb-2 font-semibold text-gray-900">Day-to-day setup</h2>
+        <p className="mb-3 text-sm text-gray-500">
+          Use the sidebar to manage services, staff, hours, FAQs, and team logins.
+        </p>
+        <div className="flex flex-wrap gap-2 text-sm">
+          <Link className="text-teal-800 hover:underline" href="/dashboard/services">
+            Services
+          </Link>
+          <Link className="text-teal-800 hover:underline" href="/dashboard/staff">
+            Staff
+          </Link>
+          <Link className="text-teal-800 hover:underline" href="/dashboard/hours">
+            Hours
+          </Link>
+          <Link className="text-teal-800 hover:underline" href="/dashboard/faqs">
+            FAQs
+          </Link>
+          <Link className="text-teal-800 hover:underline" href="/dashboard/team">
+            Team
+          </Link>
+        </div>
+      </section>
 
-        <section className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="font-semibold text-gray-900 mb-3">Staff ({staff.length})</h2>
-          <ul className="divide-y divide-gray-100">
-            {staff.map((s) => (
-              <li key={s.id} className="py-2 flex justify-between text-sm">
-                <span className="text-gray-900">{s.name}</span>
-                <span className="text-gray-500">{s.title ?? "—"}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      </div>
+      <p className="mt-6 text-sm text-stone-500">
+        The business account cannot be deleted from this dashboard. Contact STF if you need to close it.
+      </p>
     </div>
   );
 }

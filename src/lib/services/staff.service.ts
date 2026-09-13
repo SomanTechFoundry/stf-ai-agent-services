@@ -5,7 +5,7 @@
 
 import { prisma } from "@/lib/db/prisma";
 import { logger } from "@/lib/logger";
-import { NotFoundError } from "@/lib/errors";
+import { NotFoundError, ValidationError } from "@/lib/errors";
 import type { CreateStaffInput, UpdateStaffInput } from "@/lib/validation";
 import type { Staff } from "@prisma/client";
 
@@ -14,7 +14,23 @@ export type StaffWithServices = Staff & {
 };
 
 export class StaffService {
+  private async assertServicesBelongToBusiness(
+    businessId: string,
+    serviceIds: string[]
+  ): Promise<void> {
+    if (serviceIds.length === 0) return;
+    const unique = [...new Set(serviceIds)];
+    const count = await prisma.service.count({
+      where: { businessId, id: { in: unique } },
+    });
+    if (count !== unique.length) {
+      throw new ValidationError("One or more services do not belong to this business.");
+    }
+  }
+
   async create(businessId: string, input: CreateStaffInput): Promise<StaffWithServices> {
+    const serviceIds = input.serviceIds ?? [];
+    await this.assertServicesBelongToBusiness(businessId, serviceIds);
     const staff = await prisma.staff.create({
       data: {
         businessId,
@@ -26,7 +42,7 @@ export class StaffService {
         isActive: input.isActive,
         acceptsBookings: input.acceptsBookings,
         services: {
-          create: input.serviceIds.map((serviceId) => ({ serviceId })),
+          create: serviceIds.map((serviceId) => ({ serviceId })),
         },
       },
       include: { services: { select: { serviceId: true } } },
@@ -66,6 +82,9 @@ export class StaffService {
     input: UpdateStaffInput
   ): Promise<StaffWithServices> {
     await this.getById(businessId, staffId);
+    if (input.serviceIds) {
+      await this.assertServicesBelongToBusiness(businessId, input.serviceIds);
+    }
 
     return prisma.staff.update({
       where: { id: staffId },

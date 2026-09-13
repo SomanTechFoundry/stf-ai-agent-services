@@ -205,3 +205,63 @@ export const setBusinessHoursSchema = z.object({
 
 export type BusinessHoursEntry = z.infer<typeof businessHoursEntrySchema>;
 export type SetBusinessHoursInput = z.infer<typeof setBusinessHoursSchema>;
+
+// ============================================================
+// Knowledge / FAQ schemas
+// ============================================================
+
+export const knowledgeCategorySchema = z.enum(["faq", "policy", "service_info"]);
+
+export const createKnowledgeItemSchema = z.object({
+  category: knowledgeCategorySchema.default("faq"),
+  question: z.string().min(1).max(500),
+  answer: z.string().min(1).max(4000),
+  isActive: z.boolean().default(true),
+  priority: z.number().int().min(1).max(1000).default(100),
+});
+
+export const updateKnowledgeItemSchema = createKnowledgeItemSchema.partial();
+
+export type CreateKnowledgeItemInput = z.output<typeof createKnowledgeItemSchema>;
+export type UpdateKnowledgeItemInput = z.infer<typeof updateKnowledgeItemSchema>;
+
+// ============================================================
+// Dashboard user / password schemas
+// ============================================================
+
+export const passwordSchema = z
+  .string()
+  .min(8, "Password must be at least 8 characters")
+  .max(128);
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(16).max(200),
+  password: passwordSchema,
+});
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1),
+    newPassword: passwordSchema,
+  })
+  .refine((data) => data.currentPassword !== data.newPassword, {
+    message: "New password must be different from the current password",
+    path: ["newPassword"],
+  });
+
+export const inviteTeamUserSchema = z.object({
+  name: z.string().min(1).max(200),
+  email: z.string().email(),
+  role: z.literal("STAFF").default("STAFF"),
+});
+
+export const updateTeamUserSchema = z.object({
+  isActive: z.boolean(),
+});
+
+export type InviteTeamUserInput = z.output<typeof inviteTeamUserSchema>;
+export type UpdateTeamUserInput = z.infer<typeof updateTeamUserSchema>;

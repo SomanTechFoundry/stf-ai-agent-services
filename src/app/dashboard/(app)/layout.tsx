@@ -23,6 +23,7 @@ export default async function ProtectedDashboardLayout({
       businessName={business?.name ?? "Business"}
       businessSlug={business?.slug}
       userName={session.name}
+      userRole={session.role}
     >
       {children}
     </DashboardShell>

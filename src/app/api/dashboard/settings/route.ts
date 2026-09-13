@@ -6,7 +6,7 @@
 import { type NextRequest } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
-import { requireDashboardSession } from "@/lib/auth/dashboard-auth";
+import { requireDashboardOwner } from "@/lib/auth/dashboard-auth";
 import { businessService } from "@/lib/services/business.service";
 import { parseBody } from "@/lib/validation";
 import { successResponse, errorResponse } from "@/lib/utils/api-response";
@@ -37,7 +37,7 @@ const patchSettingsSchema = z.object({
 export async function GET() {
   const requestId = generateRequestId();
   try {
-    const session = await requireDashboardSession();
+    const session = await requireDashboardOwner();
     logger.event("dashboard_settings_read", "Owner opened settings", {
       requestId,
       businessId: session.businessId,
@@ -96,7 +96,7 @@ export async function GET() {
 export async function PATCH(request: NextRequest) {
   const requestId = generateRequestId();
   try {
-    const session = await requireDashboardSession();
+    const session = await requireDashboardOwner();
     const body = await request.json().catch(() => ({}));
     const input = parseBody(patchSettingsSchema, body);
 

@@ -1,4 +1,13 @@
-import { parseBody, createBusinessSchema, createCustomerSchema, createServiceSchema, businessHoursEntrySchema } from "@/lib/validation";
+import {
+  parseBody,
+  createBusinessSchema,
+  createCustomerSchema,
+  createServiceSchema,
+  businessHoursEntrySchema,
+  createKnowledgeItemSchema,
+  inviteTeamUserSchema,
+  changePasswordSchema,
+} from "@/lib/validation";
 import { ValidationError } from "@/lib/errors";
 
 describe("parseBody", () => {
@@ -109,5 +118,38 @@ describe("businessHoursEntrySchema", () => {
       closeTime: "00:00",
     });
     expect(result.isOpen).toBe(false);
+  });
+});
+
+describe("createKnowledgeItemSchema", () => {
+  it("defaults category and priority", () => {
+    const result = parseBody(createKnowledgeItemSchema, {
+      question: "Do you take walk-ins?",
+      answer: "When we have openings.",
+    });
+    expect(result.category).toBe("faq");
+    expect(result.priority).toBe(100);
+    expect(result.isActive).toBe(true);
+  });
+});
+
+describe("inviteTeamUserSchema", () => {
+  it("creates a front-desk invite", () => {
+    const result = parseBody(inviteTeamUserSchema, {
+      name: "Alex Desk",
+      email: "alex@sunsetsalon.example",
+    });
+    expect(result.role).toBe("STAFF");
+  });
+});
+
+describe("changePasswordSchema", () => {
+  it("rejects the same password", () => {
+    expect(() =>
+      parseBody(changePasswordSchema, {
+        currentPassword: "Sunset2026!",
+        newPassword: "Sunset2026!",
+      })
+    ).toThrow(ValidationError);
   });
 });

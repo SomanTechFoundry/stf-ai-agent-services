@@ -57,6 +57,14 @@ export function errorResponse(
     void import("@/lib/monitoring/sentry").then(({ captureException }) =>
       captureException(appError, context)
     );
+  } else if (appError.httpStatus === 401 || appError.httpStatus === 403) {
+    logger.debug("Auth rejected", {
+      event: "api_auth_rejected",
+      outcome: "failure",
+      ...context,
+      errorCode: appError.code,
+      httpStatus: appError.httpStatus,
+    });
   } else {
     logger.warn("Client error", {
       event: "api_client_error",

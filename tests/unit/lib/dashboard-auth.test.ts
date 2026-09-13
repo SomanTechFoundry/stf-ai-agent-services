@@ -6,6 +6,9 @@ import {
   createSessionToken,
   verifySessionToken,
 } from "@/lib/auth/session";
+import { assertOwnerRole, isOwnerRole } from "@/lib/auth/dashboard-auth";
+import { ForbiddenError } from "@/lib/errors";
+import { generateResetToken, hashResetToken, buildResetUrl } from "@/lib/services/password-reset.service";
 
 describe("dashboard password auth", () => {
   it("hashes and verifies passwords", async () => {
@@ -56,5 +59,26 @@ describe("dashboard session tokens", () => {
     });
     const tampered = token.slice(0, -4) + "xxxx";
     expect(verifySessionToken(tampered)).toBeNull();
+  });
+});
+
+describe("owner role", () => {
+  it("treats owner and super admin as owners", () => {
+    expect(isOwnerRole("BUSINESS_OWNER")).toBe(true);
+    expect(isOwnerRole("SUPER_ADMIN")).toBe(true);
+    expect(isOwnerRole("STAFF")).toBe(false);
+  });
+
+  it("blocks staff from owner actions", () => {
+    expect(() => assertOwnerRole("STAFF")).toThrow(ForbiddenError);
+    expect(() => assertOwnerRole("BUSINESS_OWNER")).not.toThrow();
+  });
+});
+
+describe("password reset tokens", () => {
+  it("hashes tokens consistently and builds a local URL", () => {
+    const { token, tokenHash } = generateResetToken();
+    expect(hashResetToken(token)).toBe(tokenHash);
+    expect(buildResetUrl(token)).toContain("/dashboard/reset-password?token=");
   });
 });

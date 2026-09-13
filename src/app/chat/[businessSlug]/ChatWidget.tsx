@@ -32,8 +32,13 @@ function generateId() {
   return Math.random().toString(36).slice(2, 10);
 }
 
+/** Locale-independent so SSR and the browser never disagree (PM vs pm). */
 function formatTime(date: Date): string {
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const hours24 = date.getHours();
+  const minutes = date.getMinutes().toString().padStart(2, "0");
+  const period = hours24 >= 12 ? "PM" : "AM";
+  const hours12 = hours24 % 12 || 12;
+  return `${hours12}:${minutes} ${period}`;
 }
 
 /**
@@ -159,6 +164,11 @@ function StreamingCursor() {
 
 function MessageBubble({ message, agentName }: { message: Message; agentName: string }) {
   const isUser = message.role === "user";
+  const [showTime, setShowTime] = useState(false);
+
+  useEffect(() => {
+    setShowTime(true);
+  }, []);
 
   return (
     <div className={`flex gap-2 ${isUser ? "flex-row-reverse" : "flex-row"} items-end`}>
@@ -177,7 +187,7 @@ function MessageBubble({ message, agentName }: { message: Message; agentName: st
           {message.content}
           {message.isStreaming && <StreamingCursor />}
         </div>
-        {!message.isStreaming && (
+        {!message.isStreaming && showTime && (
           <span className="text-[11px] text-gray-400 px-1">
             {formatTime(message.timestamp)}
           </span>
@@ -200,7 +210,12 @@ export function ChatWidget({
   businessLocation,
 }: Props) {
   const initialMessage = useMemo<Message>(
-    () => ({ id: generateId(), role: "agent", content: welcomeMessage, timestamp: new Date() }),
+    () => ({
+      id: "welcome",
+      role: "agent",
+      content: welcomeMessage,
+      timestamp: new Date(),
+    }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
