@@ -14,6 +14,7 @@ interface SettingsData {
     smsFromNumber?: string | null;
     smsFromName?: string | null;
     logoUrl?: string | null;
+    customDomain?: string | null;
   };
   agent: {
     agentName: string;
@@ -51,6 +52,7 @@ export default function SettingsPage() {
   const [smsFromNumber, setSmsFromNumber] = useState("");
   const [smsFromName, setSmsFromName] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
+  const [customDomain, setCustomDomain] = useState("");
   const [handoffPhone, setHandoffPhone] = useState("");
   const [handoffEmail, setHandoffEmail] = useState("");
   const [testTo, setTestTo] = useState("");
@@ -88,6 +90,7 @@ export default function SettingsPage() {
       setSmsFromNumber(json.data.business.smsFromNumber ?? "");
       setSmsFromName(json.data.business.smsFromName ?? "");
       setLogoUrl(json.data.business.logoUrl ?? "");
+      setCustomDomain(json.data.business.customDomain ?? "");
       setHandoffPhone(json.data.agent?.humanHandoffPhone ?? "");
       setHandoffEmail(json.data.agent?.humanHandoffEmail ?? "");
       setWidget(json.data.widget);
@@ -144,6 +147,7 @@ export default function SettingsPage() {
             smsFromNumber: smsFromNumber.trim() || null,
             smsFromName: smsFromName.trim() || null,
             logoUrl: logoUrl.trim() || null,
+            customDomain: customDomain.trim() || null,
           },
           agent: {
             agentName,
@@ -209,6 +213,21 @@ export default function SettingsPage() {
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
               />
             </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-gray-500">
+                Customer chat URL
+              </label>
+              <p className="font-mono text-sm text-slate-800">/chat/{business.slug}</p>
+            </div>
+            <label className="text-xs font-medium text-gray-500 sm:col-span-2">
+              Custom domain (optional host, no https)
+              <input
+                value={customDomain}
+                onChange={(e) => setCustomDomain(e.target.value)}
+                placeholder="book.yoursalon.com"
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              />
+            </label>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-500">
                 Cancellation notice (hours)
@@ -589,6 +608,9 @@ export default function SettingsPage() {
           Use the sidebar to manage services, staff, hours, FAQs, and team logins.
         </p>
         <div className="flex flex-wrap gap-2 text-sm">
+          <Link className="text-teal-800 hover:underline" href="/dashboard/usage">
+            Usage
+          </Link>
           <Link className="text-teal-800 hover:underline" href="/dashboard/services">
             Services
           </Link>

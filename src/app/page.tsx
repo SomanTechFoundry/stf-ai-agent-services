@@ -30,10 +30,16 @@ export default function HomePage() {
         </p>
         <div className="mt-10 flex flex-wrap gap-3">
           <Link
-            href="/dashboard/login"
+            href="/onboard"
             className="rounded-lg bg-teal-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-teal-900"
           >
-            Open dashboard
+            Set up a business
+          </Link>
+          <Link
+            href="/dashboard/login"
+            className="rounded-lg border border-stone-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 hover:bg-stone-50"
+          >
+            Sign in
           </Link>
         </div>
       </section>
@@ -61,6 +67,20 @@ export default function HomePage() {
           ))}
         </div>
       </section>
+
+      <footer className="border-t border-stone-200 py-6 text-center text-xs text-stone-500">
+        <Link href="/privacy" className="hover:underline">
+          Privacy
+        </Link>
+        {" · "}
+        <Link href="/sms-consent" className="hover:underline">
+          SMS consent
+        </Link>
+        {" · "}
+        <Link href="/terms" className="hover:underline">
+          Terms
+        </Link>
+      </footer>
     </main>
   );
 }

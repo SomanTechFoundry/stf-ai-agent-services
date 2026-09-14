@@ -97,6 +97,12 @@ export default function DashboardLoginPage() {
               Forgot password?
             </Link>
           </p>
+          <p className="text-center text-sm text-stone-500">
+            New business?{" "}
+            <Link href="/onboard" className="text-teal-800 hover:underline">
+              Set up here
+            </Link>
+          </p>
         </form>
       </div>
     </main>

@@ -8,6 +8,7 @@ import { isOwnerRole } from "@/lib/auth/roles";
 
 const NAV = [
   { href: "/dashboard/appointments", label: "Appointments", ownerOnly: false },
+  { href: "/dashboard/usage", label: "Usage", ownerOnly: true },
   { href: "/dashboard/conversations", label: "Conversations", ownerOnly: false },
   { href: "/dashboard/services", label: "Services", ownerOnly: true },
   { href: "/dashboard/staff", label: "Staff", ownerOnly: true },

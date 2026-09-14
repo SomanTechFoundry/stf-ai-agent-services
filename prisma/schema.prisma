@@ -137,6 +137,9 @@ model Business {
   smsFromName   String?   // Shown as SMS prefix and email from-name
   logoUrl       String?
 
+  // Optional vanity host (e.g. book.sunsetsalon.com). Chat still lives at /chat/{slug}.
+  customDomain  String?   @unique
+
   // Feature flags per business
   featuresEnabled Json    @default("{}")   // { "sms": true, "voiceCall": false }
 

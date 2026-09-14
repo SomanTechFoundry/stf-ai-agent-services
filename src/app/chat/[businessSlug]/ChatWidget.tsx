@@ -481,8 +481,19 @@ export function ChatWidget({
             <SendIcon />
           </button>
         </div>
-        <p className="text-center text-[11px] text-gray-300 mt-2">
+        <p className="mt-2 text-center text-[11px] text-gray-300">
           Press Enter to send · Shift+Enter for new line
+        </p>
+        <p className="mt-1 flex justify-center gap-3 text-[11px] text-stone-400">
+          <a href="/privacy" target="_blank" rel="noreferrer" className="hover:underline">
+            Privacy
+          </a>
+          <a href="/sms-consent" target="_blank" rel="noreferrer" className="hover:underline">
+            SMS consent
+          </a>
+          <a href="/terms" target="_blank" rel="noreferrer" className="hover:underline">
+            Terms
+          </a>
         </p>
       </div>
     </div>

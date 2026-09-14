@@ -27,6 +27,7 @@ const patchSettingsSchema = z.object({
       smsFromNumber: z.string().max(20).nullable().optional(),
       smsFromName: z.string().max(40).nullable().optional(),
       logoUrl: z.string().url().nullable().optional(),
+      customDomain: z.string().max(255).nullable().optional(),
     })
     .optional(),
   agent: z
@@ -125,7 +126,7 @@ export async function PATCH(request: NextRequest) {
     const input = parseBody(patchSettingsSchema, body);
 
     if (input.business) {
-      const { allowedChatOrigins, smsFromNumber, smsFromName, logoUrl, ...businessFields } =
+      const { allowedChatOrigins, smsFromNumber, smsFromName, logoUrl, customDomain, ...businessFields } =
         input.business;
       await businessService.update(session.businessId, businessFields);
       await prisma.business.update({
@@ -135,6 +136,11 @@ export async function PATCH(request: NextRequest) {
           ...(smsFromNumber !== undefined && { smsFromNumber }),
           ...(smsFromName !== undefined && { smsFromName }),
           ...(logoUrl !== undefined && { logoUrl }),
+          ...(customDomain !== undefined && {
+            customDomain: customDomain
+              ? customDomain.replace(/^https?:\/\//, "").replace(/\/$/, "").toLowerCase()
+              : null,
+          }),
         },
       });
     }
